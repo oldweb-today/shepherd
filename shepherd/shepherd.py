@@ -1,0 +1,210 @@
+import docker
+import yaml
+import json
+import base64
+import os
+
+from redis import StrictRedis
+
+from shepherd.schema import AllFlockSchema, InvalidParam
+
+
+# ============================================================================
+class Shepherd(object):
+    DEFAULT_FLOCKS = 'flocks.yaml'
+
+    NETWORK_NAME = 'shepherd.net-{0}'
+
+    def __init__(self, redis, networks_templ):
+        self.flocks = {}
+        self.docker = docker.from_env()
+        self.redis = redis
+        self.networks_templ = networks_templ
+
+    def load_flocks(self, flocks_file):
+        with open(flocks_file) as fh:
+            data = yaml.load(fh.read())
+            flocks = AllFlockSchema().load(data)
+            for flock in flocks['flocks']:
+                self.flocks[flock['name']] = flock
+
+    def request_flock(self, flock_name, overrides=None):
+        overrides = overrides or {}
+        if flock_name not in self.flocks:
+            return {'error': 'invalid_flock',
+                    'flock': flock_name}
+
+        flock_req = FlockRequest().init_new(flock_name, overrides)
+        flock_req.save(self.redis)
+        return {'reqid': flock_req.reqid}
+
+    def start_flock(self, reqid):
+        flock_req = FlockRequest(reqid)
+        if not flock_req.load(self.redis):
+            return {'error': 'invalid_req'}
+
+        try:
+            flock_name = flock_req.data['flock']
+            flock = self.flocks[flock_name]
+        except:
+            return {'error': 'invalid_flock',
+                    'flock': flock_name}
+
+        overrides = flock_req.get_overrides()
+
+        try:
+            image_list = self.resolve_image_list(flock['containers'], overrides)
+        except InvalidParam as ip:
+            return ip.msg
+
+        network = self.create_flock_network(flock_req)
+        ids = {}
+
+        for image, spec in zip(image_list, flock['containers']):
+            container = self.run_container(image, spec, reqid, network)
+
+            ids[spec['name']] = container.id[:12]
+
+        return {'ids': ids,
+                'network': network.name}
+
+    def run_container(self, image, spec, reqid, network):
+        api = self.docker.api
+
+        net_config = api.create_networking_config({
+            network.name: api.create_endpoint_config(
+                aliases=[spec['name']],
+            )
+        })
+
+        ports = spec.get('ports')
+        if ports:
+            port_bindings = {int(port): None for port in ports}
+        else:
+            port_bindings = None
+
+        host_config = api.create_host_config(auto_remove=True,
+                                             cap_add=['ALL'],
+                                             port_bindings=port_bindings)
+
+        name = spec['name'] + '-' + reqid
+
+        cdata = api.create_container(
+            image,
+            networking_config=net_config,
+            ports=ports,
+            name=name,
+            host_config=host_config,
+            detach=True,
+            hostname=spec['name'],
+        )
+
+        container = self.docker.containers.get(cdata['Id'])
+        container.start()
+        return container
+
+    def create_flock_network(self, flock_req):
+        network = self.docker.networks.create(self.NETWORK_NAME.format(flock_req.reqid))
+        return network
+
+    def resolve_image_list(self, specs, overrides):
+        image_list = []
+        for spec in specs:
+            image = overrides.get(spec['name'], spec['image'])
+            image_list.append(image)
+            if image != spec['image']:
+                if not self.is_ancestor_of(image, spec['image']):
+                    raise InvalidParam({'error': 'invalid_image_param',
+                                        'image_passed': image,
+                                        'image_expected': spec['image']
+                                       })
+
+        return image_list
+
+    def is_ancestor_of(self, name, ancestor):
+        name = self.full_tag(name)
+        ancestor = self.full_tag(ancestor)
+        try:
+            image = self.docker.images.get(name)
+        except docker.errors.ImageNotFound:
+            return False
+
+        history = image.history()
+        for entry in history:
+            if entry.get('Tags') and ancestor in entry['Tags']:
+                return True
+
+        return False
+
+    def stop_flock(self, reqid):
+        flock_req = FlockRequest(reqid)
+        network = self.docker.networks.get(self.NETWORK_NAME.format(reqid))
+
+        for container in network.containers:
+            try:
+                container.kill()
+                container.remove(v=True, link=True, force=True)
+            except docker.errors.APIError:
+                pass
+
+        network.remove()
+        flock_req.delete(self.redis)
+
+    @classmethod
+    def full_tag(cls, tag):
+        return tag + ':latest' if ':' not in tag else tag
+
+
+# ===========================================================================
+class FlockRequest(object):
+    REQ_KEY = 'req:{0}'
+    REQ_TTL = 120
+
+    def __init__(self, reqid=None):
+        if not reqid:
+            reqid = self._make_reqid()
+        self.reqid = reqid
+
+    def _make_reqid(self):
+        return base64.b32encode(os.urandom(15)).decode('utf-8')
+
+    def init_new(self, flock_name, overrides):
+        self.data = {'id': self.reqid,
+                     'overrides': json.dumps(overrides),
+                     'flock': flock_name,
+                    }
+        return self
+
+    def get_overrides(self):
+        overrides = self.data.get('overrides')
+        if not overrides:
+            return {}
+
+        return json.loads(overrides)
+
+    def load(self, redis):
+        key = self.REQ_KEY.format(self.reqid)
+        self.data = redis.hgetall(key)
+        return self.data != {}
+
+    def save(self, redis):
+        key = self.REQ_KEY.format(self.reqid)
+        redis.hmset(key, self.data)
+        redis.expire(key, self.REQ_TTL)
+
+    def delete(self, redis):
+        key = self.REQ_KEY.format(self.reqid)
+        redis.delete(key)
+
+
+
+# ===========================================================================
+if __name__ == '__main__':
+    pass
+    #shep = Shepherd(StrictRedis('redis://redis/3'))
+    #res = shep.request_flock('test', {'foo': 'bar'})
+
+    #print(res['reqid'])
+
+
+

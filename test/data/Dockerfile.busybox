@@ -1,0 +1,6 @@
+FROM busybox
+
+ENV FOO NEW
+
+CMD sh -c 'sleep 300 & wait'
+

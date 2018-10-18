@@ -1,0 +1,9 @@
+flocks:
+    - name: vnc-browser
+      containers:
+        - name: vnc-xserver
+          image: oldwebtoday/vnc-xserver
+
+        - name: browser
+          image: oldwebtoday/base-browser
+

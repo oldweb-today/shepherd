@@ -1,0 +1,3 @@
+FROM alpine
+ENV FOO BAR
+CMD sh -c 'sleep 300 & wait'

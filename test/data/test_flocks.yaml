@@ -1,0 +1,16 @@
+flocks:
+    - name: test_1
+      containers:
+        - name: base-alpine
+          image: test-shepherd/alpine
+
+        - name: busybox
+          image: test-shepherd/busybox
+          ports:
+                - 8200
+                - 9356
+
+        - name: another-box
+          image: test-shepherd/busybox
+
+
