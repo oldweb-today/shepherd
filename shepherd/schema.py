@@ -4,7 +4,8 @@ from marshmallow import Schema, fields, pprint
 class ContainerSchema(Schema):
     name = fields.String()
     image = fields.String()
-    ports = fields.List(fields.Int())
+    ports = fields.Dict(keys=fields.String(), values=fields.Int(), default={})
+    environment = fields.Dict(keys=fields.String(), values=fields.String(), default={})
 
 class FlockSchema(Schema):
     name = fields.String()

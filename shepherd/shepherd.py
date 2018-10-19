@@ -3,6 +3,7 @@ import yaml
 import json
 import base64
 import os
+import time
 
 from redis import StrictRedis
 
@@ -28,13 +29,12 @@ class Shepherd(object):
             for flock in flocks['flocks']:
                 self.flocks[flock['name']] = flock
 
-    def request_flock(self, flock_name, overrides=None):
-        overrides = overrides or {}
+    def request_flock(self, flock_name, **kwargs):
         if flock_name not in self.flocks:
             return {'error': 'invalid_flock',
                     'flock': flock_name}
 
-        flock_req = FlockRequest().init_new(flock_name, overrides)
+        flock_req = FlockRequest().init_new(flock_name, **kwargs)
         flock_req.save(self.redis)
         return {'reqid': flock_req.reqid}
 
@@ -58,17 +58,41 @@ class Shepherd(object):
             return ip.msg
 
         network = self.create_flock_network(flock_req)
-        ids = {}
+        containers = {}
 
         for image, spec in zip(image_list, flock['containers']):
-            container = self.run_container(image, spec, reqid, network)
+            container, info = self.run_container(image, spec, flock_req, network)
+            containers[spec['name']] = info
 
-            ids[spec['name']] = container.id[:12]
+        return {
+                'containers': containers,
+                'network': network.name
+               }
 
-        return {'ids': ids,
-                'network': network.name}
+    def short_id(self, container):
+        return container.id[:12]
 
-    def run_container(self, image, spec, reqid, network):
+    def get_ip(self, container, network):
+        return container.attrs['NetworkSettings']['Networks'][network.name]['IPAddress']
+
+    def get_ports(self, container, port_map):
+        ports = {}
+        if not port_map:
+            return ports
+
+        for port_name in port_map:
+            try:
+                port = port_map[port_name]
+                pinfo = container.attrs['NetworkSettings']['Ports'][str(port) + '/tcp']
+                pinfo = pinfo[0]
+                ports[port_name] = int(pinfo['HostPort'])
+
+            except:
+                ports[port_name] = -1
+
+        return ports
+
+    def run_container(self, image, spec, flock_req, network):
         api = self.docker.api
 
         net_config = api.create_networking_config({
@@ -79,29 +103,46 @@ class Shepherd(object):
 
         ports = spec.get('ports')
         if ports:
-            port_bindings = {int(port): None for port in ports}
+            port_values = list(ports.values())
+            port_bindings = {int(port): None for port in port_values}
         else:
+            port_values = None
             port_bindings = None
 
         host_config = api.create_host_config(auto_remove=True,
                                              cap_add=['ALL'],
                                              port_bindings=port_bindings)
 
-        name = spec['name'] + '-' + reqid
+        name = spec['name'] + '-' + flock_req.reqid
+
+        env = spec.get('environment') or {}
+        print(flock_req.data)
+        if flock_req.data['environment']:
+            env.update(flock_req.data['environment'])
 
         cdata = api.create_container(
             image,
             networking_config=net_config,
-            ports=ports,
+            ports=port_values,
             name=name,
             host_config=host_config,
             detach=True,
             hostname=spec['name'],
+            environment=env,
         )
 
         container = self.docker.containers.get(cdata['Id'])
         container.start()
-        return container
+
+        # reload to get updated data
+        container.reload()
+
+        info = {}
+        info['id'] = self.short_id(container)
+        info['ip'] = self.get_ip(container, network)
+        info['ports'] = self.get_ports(container, ports)
+
+        return container, info
 
     def create_flock_network(self, flock_req):
         network = self.docker.networks.create(self.NETWORK_NAME.format(flock_req.reqid))
@@ -168,29 +209,29 @@ class FlockRequest(object):
     def _make_reqid(self):
         return base64.b32encode(os.urandom(15)).decode('utf-8')
 
-    def init_new(self, flock_name, overrides):
+    def init_new(self, flock_name, overrides, environment=None, user_params=None):
+        overrides = overrides or {}
+        environment = environment or {}
+        user_params = user_params or {}
         self.data = {'id': self.reqid,
-                     'overrides': json.dumps(overrides),
+                     'overrides': overrides,
                      'flock': flock_name,
+                     'user_params': user_params,
+                     'environment': environment,
                     }
         return self
 
     def get_overrides(self):
-        overrides = self.data.get('overrides')
-        if not overrides:
-            return {}
-
-        return json.loads(overrides)
+        return self.data.get('overrides') or {}
 
     def load(self, redis):
         key = self.REQ_KEY.format(self.reqid)
-        self.data = redis.hgetall(key)
+        self.data = json.loads(redis.get(key))
         return self.data != {}
 
     def save(self, redis):
         key = self.REQ_KEY.format(self.reqid)
-        redis.hmset(key, self.data)
-        redis.expire(key, self.REQ_TTL)
+        redis.set(key, json.dumps(self.data), ex=self.REQ_TTL)
 
     def delete(self, redis):
         key = self.REQ_KEY.format(self.reqid)

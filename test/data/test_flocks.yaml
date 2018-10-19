@@ -7,10 +7,14 @@ flocks:
         - name: busybox
           image: test-shepherd/busybox
           ports:
-                - 8200
-                - 9356
+            port_a: 8200
+            port_b: 9356
 
         - name: another-box
           image: test-shepherd/busybox
+
+          environment:
+            TEST: FOO
+            VAR: BAR
 
 

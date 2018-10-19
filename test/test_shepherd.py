@@ -1,10 +1,11 @@
 import docker
 import fakeredis
-from shepherd.shepherd import Shepherd
+import json
 import os
 import pytest
 import time
 import glob
+from shepherd.shepherd import Shepherd
 
 
 # ============================================================================
@@ -37,11 +38,12 @@ class TestShepherd(object):
             cls.docker.images.remove(image.tags[0], force=True)
 
     def test_reqid(self):
-        res = self.shepherd.request_flock('test_1', overrides={'base-alpine': 'test-shepherd/alpine-derived'})
+        res = self.shepherd.request_flock('test_1', overrides={'base-alpine': 'test-shepherd/alpine-derived'},
+                                                    environment={'FOO': 'BAR2'})
         reqid = res['reqid']
         TestShepherd.reqid = reqid
         assert reqid
-        assert self.redis.hget('req:' + reqid, 'flock') == 'test_1'
+        assert json.loads(self.redis.get('req:' + reqid))['flock'] == 'test_1'
 
     def test_is_ancestor(self):
         assert self.shepherd.is_ancestor_of('test-shepherd/busybox', 'busybox')
@@ -54,14 +56,37 @@ class TestShepherd(object):
         flock = self.shepherd.start_flock(self.reqid)
 
         TestShepherd.flock = flock
+        containers = flock['containers']
 
-        assert self.docker.containers.get(flock['ids']['base-alpine']).image.tags[0] == 'test-shepherd/alpine-derived:latest'
-        assert self.docker.containers.get(flock['ids']['busybox']).image.tags[0] == 'test-shepherd/busybox:latest'
-        assert self.docker.containers.get(flock['ids']['another-box']).image.tags[0] == 'test-shepherd/busybox:latest'
+        # verify images
+        assert self.docker.containers.get(containers['base-alpine']['id']).image.tags[0] == 'test-shepherd/alpine-derived:latest'
+        assert self.docker.containers.get(containers['busybox']['id']).image.tags[0] == 'test-shepherd/busybox:latest'
+        assert self.docker.containers.get(containers['another-box']['id']).image.tags[0] == 'test-shepherd/busybox:latest'
 
-        for name, cid in flock['ids'].items():
-            assert self.docker.containers.get(cid)
+        # verify env vars
+        env = self.docker.containers.get(containers['another-box']['id']).attrs['Config']['Env']
 
+        # default
+        assert 'VAR=BAR' in env
+        assert 'TEST=FOO' in env
+
+        # overriden!
+        assert 'FOO=BAR2' in env
+
+        # verify ports on busybox set!
+        assert set(containers['busybox']['ports'].keys()) == {'port_a', 'port_b'}
+        for value in containers['busybox']['ports'].values():
+            assert value > 0
+
+        for name, info in containers.items():
+            container = self.docker.containers.get(info['id'])
+            assert container
+
+            assert 'FOO=BAR2' in container.attrs['Config']['Env']
+            # assert ip is set
+            assert info['ip'] != ''
+
+        # verify network
         assert self.docker.networks.get(flock['network'])
 
     def test_stop(self):
@@ -69,10 +94,11 @@ class TestShepherd(object):
         res = self.shepherd.stop_flock(self.reqid)
 
         flock = TestShepherd.flock
+        containers = flock['containers']
 
-        for name, cid in flock['ids'].items():
+        for name, info in containers.items():
             with pytest.raises(docker.errors.NotFound):
-                self.docker.containers.get(cid)
+                self.docker.containers.get(info['id'])
 
         with pytest.raises(docker.errors.NotFound):
             assert self.docker.networks.get(flock['network'])
