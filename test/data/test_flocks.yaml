@@ -3,6 +3,7 @@ flocks:
       containers:
         - name: base-alpine
           image: test-shepherd/alpine
+          set_user_params: true
 
         - name: busybox
           image: test-shepherd/busybox

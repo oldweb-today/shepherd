@@ -16,6 +16,8 @@ class Shepherd(object):
 
     NETWORK_NAME = 'shepherd.net-{0}'
 
+    USER_PARAMS_KEY = 'up:{0}'
+
     def __init__(self, redis, networks_templ):
         self.flocks = {}
         self.docker = docker.from_env()
@@ -116,9 +118,7 @@ class Shepherd(object):
         name = spec['name'] + '-' + flock_req.reqid
 
         env = spec.get('environment') or {}
-        print(flock_req.data)
-        if flock_req.data['environment']:
-            env.update(flock_req.data['environment'])
+        env.update(flock_req.data['environment'])
 
         cdata = api.create_container(
             image,
@@ -141,6 +141,9 @@ class Shepherd(object):
         info['id'] = self.short_id(container)
         info['ip'] = self.get_ip(container, network)
         info['ports'] = self.get_ports(container, ports)
+
+        if info['ip'] and flock_req.data['user_params'] and spec.get('set_user_params'):
+            self.redis.hmset(self.USER_PARAMS_KEY.format(info['ip']), flock_req.data['user_params'])
 
         return container, info
 
@@ -182,6 +185,12 @@ class Shepherd(object):
         network = self.docker.networks.get(self.NETWORK_NAME.format(reqid))
 
         for container in network.containers:
+            try:
+                ip = self.get_ip(container, network)
+                self.redis.delete(self.USER_PARAMS_KEY.format(ip))
+            except:
+                pass
+
             try:
                 container.kill()
                 container.remove(v=True, link=True, force=True)

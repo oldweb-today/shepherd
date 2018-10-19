@@ -32,6 +32,9 @@ class TestShepherd(object):
                                     tag='test-shepherd/' + name,
                                     rm=True)
 
+        cls.user_params = {'data': 'val',
+                           'another': '1'}
+
     @classmethod
     def teardown_class(cls):
         for image in cls.docker.images.list('test-shepherd/*'):
@@ -39,7 +42,9 @@ class TestShepherd(object):
 
     def test_reqid(self):
         res = self.shepherd.request_flock('test_1', overrides={'base-alpine': 'test-shepherd/alpine-derived'},
-                                                    environment={'FOO': 'BAR2'})
+                                                    environment={'FOO': 'BAR2'},
+                                                    user_params=self.user_params)
+
         reqid = res['reqid']
         TestShepherd.reqid = reqid
         assert reqid
@@ -63,6 +68,10 @@ class TestShepherd(object):
         assert self.docker.containers.get(containers['busybox']['id']).image.tags[0] == 'test-shepherd/busybox:latest'
         assert self.docker.containers.get(containers['another-box']['id']).image.tags[0] == 'test-shepherd/busybox:latest'
 
+    def test_verify_launch(self):
+        flock = TestShepherd.flock
+        containers = flock['containers']
+
         # verify env vars
         env = self.docker.containers.get(containers['another-box']['id']).attrs['Config']['Env']
 
@@ -78,13 +87,24 @@ class TestShepherd(object):
         for value in containers['busybox']['ports'].values():
             assert value > 0
 
+        # check all
         for name, info in containers.items():
             container = self.docker.containers.get(info['id'])
             assert container
 
             assert 'FOO=BAR2' in container.attrs['Config']['Env']
+
             # assert ip is set
             assert info['ip'] != ''
+
+            # user params only set for 'base-alpine'
+            user_params_key = Shepherd.USER_PARAMS_KEY.format(info['ip'])
+
+            if name == 'base-alpine':
+                assert self.redis.hgetall(user_params_key) == self.user_params
+
+            else:
+                assert not self.redis.exists(user_params_key)
 
         # verify network
         assert self.docker.networks.get(flock['network'])
@@ -104,5 +124,7 @@ class TestShepherd(object):
             assert self.docker.networks.get(flock['network'])
 
         assert not self.redis.exists('req:' + self.reqid)
+
+        assert self.redis.keys(Shepherd.USER_PARAMS_KEY.format('*')) == []
 
 

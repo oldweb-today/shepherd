@@ -6,6 +6,7 @@ class ContainerSchema(Schema):
     image = fields.String()
     ports = fields.Dict(keys=fields.String(), values=fields.Int(), default={})
     environment = fields.Dict(keys=fields.String(), values=fields.String(), default={})
+    set_user_params = fields.Boolean(default=False)
 
 class FlockSchema(Schema):
     name = fields.String()
