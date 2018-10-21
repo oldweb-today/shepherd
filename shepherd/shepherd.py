@@ -31,26 +31,14 @@ class Shepherd(object):
             for flock in flocks['flocks']:
                 self.flocks[flock['name']] = flock
 
-    def request_flock(self, flock_name, **kwargs):
-        if flock_name not in self.flocks:
-            return {'error': 'invalid_flock',
-                    'flock': flock_name}
-
-        flock_req = FlockRequest().init_new(flock_name, **kwargs)
-        flock_req.save(self.redis)
-        return {'reqid': flock_req.reqid}
-
-    def start_flock(self, reqid):
-        flock_req = FlockRequest(reqid)
-        if not flock_req.load(self.redis):
-            return {'error': 'invalid_req'}
-
+    def request_flock(self, flock_name, req_opts):
         try:
-            flock_name = flock_req.data['flock']
             flock = self.flocks[flock_name]
         except:
             return {'error': 'invalid_flock',
                     'flock': flock_name}
+
+        flock_req = FlockRequest().init_new(flock_name, req_opts)
 
         overrides = flock_req.get_overrides()
 
@@ -58,6 +46,31 @@ class Shepherd(object):
             image_list = self.resolve_image_list(flock['containers'], overrides)
         except InvalidParam as ip:
             return ip.msg
+
+        flock_req.data['image_list'] = image_list
+
+        flock_req.save(self.redis)
+        return {'reqid': flock_req.reqid}
+
+    def start_flock(self, reqid):
+        flock_req = FlockRequest(reqid)
+        if not flock_req.load(self.redis):
+            return {'error': 'invalid_reqid'}
+
+        try:
+            flock_name = flock_req.data['flock']
+            image_list = flock_req.data['image_list']
+            flock = self.flocks[flock_name]
+        except:
+            return {'error': 'invalid_flock',
+                    'flock': flock_name}
+
+        #overrides = flock_req.get_overrides()
+
+        #try:
+        #    image_list = self.resolve_image_list(flock['containers'], overrides)
+        #except InvalidParam as ip:
+        #    return ip.msg
 
         network = self.create_flock_network(flock_req)
         containers = {}
@@ -218,15 +231,12 @@ class FlockRequest(object):
     def _make_reqid(self):
         return base64.b32encode(os.urandom(15)).decode('utf-8')
 
-    def init_new(self, flock_name, overrides, environment=None, user_params=None):
-        overrides = overrides or {}
-        environment = environment or {}
-        user_params = user_params or {}
+    def init_new(self, flock_name, req_opts):
         self.data = {'id': self.reqid,
-                     'overrides': overrides,
                      'flock': flock_name,
-                     'user_params': user_params,
-                     'environment': environment,
+                     'overrides': req_opts.get('overrides', {}),
+                     'user_params': req_opts.get('user_params', {}),
+                     'environment': req_opts.get('environment', {}),
                     }
         return self
 
@@ -235,7 +245,8 @@ class FlockRequest(object):
 
     def load(self, redis):
         key = self.REQ_KEY.format(self.reqid)
-        self.data = json.loads(redis.get(key))
+        data = redis.get(key)
+        self.data = json.loads(data) if data else {}
         return self.data != {}
 
     def save(self, redis):

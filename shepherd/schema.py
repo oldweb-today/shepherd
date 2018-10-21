@@ -1,21 +1,51 @@
 from marshmallow import Schema, fields, pprint
+from marshmallow.utils import RAISE
 
+def string_dict():
+    return fields.Dict(keys=fields.String(), values=fields.String())
 
 class ContainerSchema(Schema):
     name = fields.String()
     image = fields.String()
     ports = fields.Dict(keys=fields.String(), values=fields.Int(), default={})
-    environment = fields.Dict(keys=fields.String(), values=fields.String(), default={})
+    environment = string_dict()
     set_user_params = fields.Boolean(default=False)
 
-class FlockSchema(Schema):
+class FlockSpecSchema(Schema):
     name = fields.String()
     containers = fields.Nested(ContainerSchema, many=True)
 
 class AllFlockSchema(Schema):
-    flocks = fields.Nested(FlockSchema, many=True)
+    flocks = fields.Nested(FlockSpecSchema, many=True)
 
 
 class InvalidParam(Exception):
     def __init__(self, msg):
         self.msg = msg
+
+
+# HTTP API
+class FlockIdSchema(Schema):
+    flock = fields.String(required=True)
+
+class FlockRequestOptsSchema(Schema):
+    overrides = string_dict()
+    user_params = string_dict()
+    environment = string_dict()
+
+class GenericResponseSchema(Schema):
+    reqid = fields.String()
+    error = fields.String()
+    success = fields.Boolean()
+
+class LaunchContainerSchema(Schema):
+    ip = fields.String()
+    ports = fields.Dict(keys=fields.String(), values=fields.Int(), default={})
+    id = fields.String()
+
+class LaunchResponseSchema(Schema):
+    reqid = fields.String()
+    network = fields.String()
+    containers = fields.Dict(keys=fields.String(), values=fields.Nested(LaunchContainerSchema))
+
+

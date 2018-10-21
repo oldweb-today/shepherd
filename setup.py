@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
 import glob
 
-__version__ = '1.0.0'
+from shepherd import __version__
 
 class PyTest(TestCommand):
     def finalize_options(self):
@@ -41,7 +41,7 @@ setup(
     entry_points="""
         [console_scripts]
     """,
-    #cmdclass={'test': PyTest},
+    cmdclass={'test': PyTest},
     test_suite='',
     tests_require=[
         'pytest',

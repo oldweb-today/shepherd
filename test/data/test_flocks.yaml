@@ -18,4 +18,9 @@ flocks:
             TEST: FOO
             VAR: BAR
 
+    - name: test_b
+      containers:
+        - name: box
+          image: test-shepherd/busybox
+ 
 
