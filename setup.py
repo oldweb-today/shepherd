@@ -41,6 +41,7 @@ setup(
         'redis',
         'apispec',
         'flask',
+        'pyyaml',
         ],
     zip_safe=True,
     entry_points="""
@@ -51,6 +52,7 @@ setup(
     tests_require=[
         'pytest',
         'pytest-cov',
+        'pytest-flask',
         'fakeredis',
     ],
     classifiers=[
