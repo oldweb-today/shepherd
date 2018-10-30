@@ -18,6 +18,8 @@ class Shepherd(object):
 
     USER_PARAMS_KEY = 'up:{0}'
 
+    SHEP_REQID_LABEL = 'owt.shepherd.reqid'
+
     def __init__(self, redis, networks_templ):
         self.flocks = {}
         self.docker = docker.from_env()
@@ -31,7 +33,7 @@ class Shepherd(object):
             for flock in flocks['flocks']:
                 self.flocks[flock['name']] = flock
 
-    def request_flock(self, flock_name, req_opts):
+    def request_flock(self, flock_name, req_opts, ttl=None):
         try:
             flock = self.flocks[flock_name]
         except:
@@ -48,11 +50,11 @@ class Shepherd(object):
             return ip.msg
 
         flock_req.data['image_list'] = image_list
+        flock_req.save(self.redis, expire=ttl)
 
-        flock_req.save(self.redis)
         return {'reqid': flock_req.reqid}
 
-    def start_flock(self, reqid):
+    def start_flock(self, reqid, labels=None):
         flock_req = FlockRequest(reqid)
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
@@ -76,7 +78,7 @@ class Shepherd(object):
         containers = {}
 
         for image, spec in zip(image_list, flock['containers']):
-            container, info = self.run_container(image, spec, flock_req, network)
+            container, info = self.run_container(image, spec, flock_req, network, labels=labels)
             containers[spec['name']] = info
 
         return {
@@ -107,7 +109,7 @@ class Shepherd(object):
 
         return ports
 
-    def run_container(self, image, spec, flock_req, network):
+    def run_container(self, image, spec, flock_req, network, labels=None):
         api = self.docker.api
 
         net_config = api.create_networking_config({
@@ -133,6 +135,9 @@ class Shepherd(object):
         env = spec.get('environment') or {}
         env.update(flock_req.data['environment'])
 
+        labels = labels or {}
+        labels[self.SHEP_REQID_LABEL] = flock_req.reqid
+
         cdata = api.create_container(
             image,
             networking_config=net_config,
@@ -142,6 +147,7 @@ class Shepherd(object):
             detach=True,
             hostname=spec['name'],
             environment=env,
+            labels=labels
         )
 
         container = self.docker.containers.get(cdata['Id'])
@@ -195,9 +201,17 @@ class Shepherd(object):
 
     def stop_flock(self, reqid):
         flock_req = FlockRequest(reqid)
-        network = self.docker.networks.get(self.NETWORK_NAME.format(reqid))
+        flock_req.delete(self.redis)
 
-        for container in network.containers:
+        containers = self.docker.containers.list(filters={'label': self.SHEP_REQID_LABEL + '=' + reqid})
+
+        try:
+            network = self.docker.networks.get(self.NETWORK_NAME.format(reqid))
+            containers = network.containers
+        except docker.errors.NotFound:
+            return {'error': 'not_found'}
+
+        for container in containers:
             try:
                 ip = self.get_ip(container, network)
                 self.redis.delete(self.USER_PARAMS_KEY.format(ip))
@@ -210,8 +224,12 @@ class Shepherd(object):
             except docker.errors.APIError:
                 pass
 
-        network.remove()
-        flock_req.delete(self.redis)
+        try:
+            network.remove()
+        except:
+            pass
+
+        return {'success': True}
 
     @classmethod
     def full_tag(cls, tag):
@@ -221,12 +239,14 @@ class Shepherd(object):
 # ===========================================================================
 class FlockRequest(object):
     REQ_KEY = 'req:{0}'
+
     REQ_TTL = 120
 
     def __init__(self, reqid=None):
         if not reqid:
             reqid = self._make_reqid()
         self.reqid = reqid
+        self.key = self.REQ_KEY.format(self.reqid)
 
     def _make_reqid(self):
         return base64.b32encode(os.urandom(15)).decode('utf-8')
@@ -244,19 +264,20 @@ class FlockRequest(object):
         return self.data.get('overrides') or {}
 
     def load(self, redis):
-        key = self.REQ_KEY.format(self.reqid)
-        data = redis.get(key)
+        data = redis.get(self.key)
         self.data = json.loads(data) if data else {}
         return self.data != {}
 
-    def save(self, redis):
-        key = self.REQ_KEY.format(self.reqid)
-        redis.set(key, json.dumps(self.data), ex=self.REQ_TTL)
+    def save(self, redis, expire=None):
+        if expire is None:
+            expire = self.REQ_TTL
+        elif expire == -1:
+            expire = None
+
+        redis.set(self.key, json.dumps(self.data), ex=expire)
 
     def delete(self, redis):
-        key = self.REQ_KEY.format(self.reqid)
-        redis.delete(key)
-
+        redis.delete(self.key)
 
 
 # ===========================================================================

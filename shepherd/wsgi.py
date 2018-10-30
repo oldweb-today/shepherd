@@ -30,7 +30,8 @@ class Validator():
 
         if self.req_schema:
             try:
-                req_params = self.req_schema().load(request.json)
+                input_data = request.json or{}
+                req_params = self.req_schema().load(input_data)
                 kwargs['request'] = req_params
             except marshmallow.exceptions.ValidationError as ve:
                 status_code = 400
@@ -60,8 +61,9 @@ class Validator():
 
 # ============================================================================
 class APIFlask(Flask):
-    def __init__(self, shepherd):
+    def __init__(self, shepherd, pool):
         self.shepherd = shepherd
+        self.pool = pool
 
         # Create an APISpec
         self.apispec = APISpec(
@@ -100,8 +102,8 @@ class APIFlask(Flask):
 
 
 # ============================================================================
-def create_app(shepherd):
-    app = APIFlask(shepherd)
+def create_app(shepherd, pool):
+    app = APIFlask(shepherd, pool)
 
     init_routes(app)
 

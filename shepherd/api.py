@@ -38,7 +38,7 @@ def init_routes(app):
                 404:
                     schema: GenericResponseSchema
         """
-        return app.shepherd.request_flock(flock, kwargs.get('request'))
+        return app.pool.request(flock, kwargs.get('request'))
 
 
     @app.route('/api/start_flock/<reqid>', methods=['POST'],
@@ -65,7 +65,7 @@ def init_routes(app):
                 404:
                     schema: GenericResponseSchema
         """
-        return app.shepherd.start_flock(reqid)
+        return app.pool.start(reqid)
 
     @app.route('/api/stop_flock/<reqid>', methods=['POST'],
                resp_schema=GenericResponseSchema)
@@ -91,7 +91,7 @@ def init_routes(app):
                 404:
                     schema: GenericResponseSchema
         """
-        app.shepherd.stop_flock(reqid)
+        app.pool.stop(reqid)
         return {'success': True}
 
 

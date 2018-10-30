@@ -22,5 +22,9 @@ flocks:
       containers:
         - name: box
           image: test-shepherd/busybox
+
+        - name: box-2
+          image: test-shepherd/busybox
+ 
  
 
