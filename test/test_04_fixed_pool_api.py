@@ -65,7 +65,7 @@ class TestFixedPoolApi:
     def test_expire_queue_next_in_order(self, redis, docker_client):
         self.remove_next(docker_client)
 
-        time.sleep(1.0)
+        time.sleep(3.0)
 
         assert redis.scard('p:fixed-pool:f') == 2
 
