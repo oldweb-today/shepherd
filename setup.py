@@ -41,6 +41,7 @@ setup(
         'redis',
         'apispec',
         'flask',
+        'gevent',
         'pyyaml',
         ],
     zip_safe=True,
