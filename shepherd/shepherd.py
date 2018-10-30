@@ -4,6 +4,7 @@ import json
 import base64
 import os
 import time
+import traceback
 
 from redis import StrictRedis
 
@@ -33,7 +34,8 @@ class Shepherd(object):
             for flock in flocks['flocks']:
                 self.flocks[flock['name']] = flock
 
-    def request_flock(self, flock_name, req_opts, ttl=None):
+    def request_flock(self, flock_name, req_opts=None, ttl=None):
+        req_opts = req_opts or {}
         try:
             flock = self.flocks[flock_name]
         except:
@@ -67,24 +69,45 @@ class Shepherd(object):
             return {'error': 'invalid_flock',
                     'flock': flock_name}
 
-        #overrides = flock_req.get_overrides()
-
-        #try:
-        #    image_list = self.resolve_image_list(flock['containers'], overrides)
-        #except InvalidParam as ip:
-        #    return ip.msg
-
-        network = self.create_flock_network(flock_req)
+        network = None
         containers = {}
 
-        for image, spec in zip(image_list, flock['containers']):
-            container, info = self.run_container(image, spec, flock_req, network, labels=labels)
-            containers[spec['name']] = info
+        try:
+            network = self.create_flock_network(flock_req)
+
+            for image, spec in zip(image_list, flock['containers']):
+                container, info = self.run_container(image, spec, flock_req, network, labels=labels)
+                containers[spec['name']] = info
+
+            links = flock.get('links', [])
+            for link in links:
+                self.link_external_container(network, link)
+
+        except:
+            traceback.print_exc()
+
+            try:
+                self.stop_flock(reqid)
+            except:
+                pass
+
+            return {'error': 'start_error',
+                    'details': traceback.format_exc()
+                   }
 
         return {
                 'containers': containers,
                 'network': network.name
                }
+
+    def link_external_container(self, network, link):
+        if ':' in link:
+            name, alias = link.split(':', 1)
+        else:
+            name = link
+            alias = link
+
+        res = network.connect(name, aliases=[alias])
 
     def short_id(self, container):
         return container.id[:12]
@@ -203,15 +226,22 @@ class Shepherd(object):
         flock_req = FlockRequest(reqid)
         flock_req.delete(self.redis)
 
-        containers = self.docker.containers.list(filters={'label': self.SHEP_REQID_LABEL + '=' + reqid})
-
         try:
             network = self.docker.networks.get(self.NETWORK_NAME.format(reqid))
             containers = network.containers
-        except docker.errors.NotFound:
-            return {'error': 'not_found'}
+        except:
+            network = None
+            containers = self.docker.containers.list(filters={'label': self.SHEP_REQID_LABEL + '=' + reqid})
 
         for container in containers:
+            if container.labels.get(self.SHEP_REQID_LABEL) != reqid:
+                try:
+                    network.disconnect(container)
+                except:
+                    pass
+
+                continue
+
             try:
                 ip = self.get_ip(container, network)
                 self.redis.delete(self.USER_PARAMS_KEY.format(ip))

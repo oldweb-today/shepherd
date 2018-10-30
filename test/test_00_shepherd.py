@@ -108,4 +108,52 @@ class TestShepherd(object):
 
         assert redis.keys(Shepherd.USER_PARAMS_KEY.format('*')) == []
 
+    def test_start_with_external_link(self, docker_client, shepherd):
+        res = shepherd.request_flock('test_external')
+
+        reqid = res['reqid']
+
+        res = shepherd.start_flock(reqid)
+
+        assert res['error'] == 'start_error'
+
+        ext = None
+
+        try:
+            ext = docker_client.containers.run('test-shepherd/busybox',
+                                               name='test_external_container_1',
+                                               detach=True,
+                                               auto_remove=True)
+
+            res = shepherd.start_flock(reqid)
+
+            assert res['error'] == 'invalid_reqid'
+
+            # new reqid needed
+            res = shepherd.request_flock('test_external')
+            reqid = res['reqid']
+
+            res = shepherd.start_flock(reqid)
+
+            assert res['containers']
+
+            ext.reload()
+
+            networks = ext.attrs['NetworkSettings']['Networks']
+            assert res['network'] in networks
+
+            assert 'external' in networks[res['network']]['Aliases']
+
+        finally:
+            try:
+                shepherd.stop_flock(reqid)
+            except:
+                pass
+
+            if ext:
+                ext.kill()
+
+
+        with pytest.raises(docker.errors.NotFound):
+            assert docker_client.networks.get(res['network'])
 

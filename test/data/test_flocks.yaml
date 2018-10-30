@@ -18,6 +18,14 @@ flocks:
             TEST: FOO
             VAR: BAR
 
+    - name: test_external
+      links:
+        - test_external_container_1:external
+
+      containers:
+        - name: alpine
+          image: test-shepherd/alpine
+
     - name: test_b
       containers:
         - name: box

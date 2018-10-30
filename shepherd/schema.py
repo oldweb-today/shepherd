@@ -14,6 +14,7 @@ class ContainerSchema(Schema):
 class FlockSpecSchema(Schema):
     name = fields.String()
     containers = fields.Nested(ContainerSchema, many=True)
+    links = fields.List(fields.String())
 
 class AllFlockSchema(Schema):
     flocks = fields.Nested(FlockSpecSchema, many=True)
