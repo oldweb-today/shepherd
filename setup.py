@@ -39,7 +39,7 @@ setup(
         'docker',
         'marshmallow',
         'redis',
-        'apispec',
+        'apispec<1.0',
         'flask',
         'gevent',
         'pyyaml',
