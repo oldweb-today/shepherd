@@ -33,6 +33,17 @@ flocks:
 
         - name: box-2
           image: test-shepherd/busybox
+
+    - name: test_external_net
+      containers:
+        - name: container-1
+          image: test-shepherd/alpine
+
+        - name: container-2
+          image: test-shepherd/alpine
+          external_network: test-shepherd-external-net
+
+
  
  
 

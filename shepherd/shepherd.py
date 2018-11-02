@@ -75,13 +75,13 @@ class Shepherd(object):
         try:
             network = self.create_flock_network(flock_req)
 
-            for image, spec in zip(image_list, flock['containers']):
-                container, info = self.run_container(image, spec, flock_req, network, labels=labels)
-                containers[spec['name']] = info
-
             links = flock.get('links', [])
             for link in links:
                 self.link_external_container(network, link)
+
+            for image, spec in zip(image_list, flock['containers']):
+                container, info = self.run_container(image, spec, flock_req, network, labels=labels)
+                containers[spec['name']] = info
 
         except:
             traceback.print_exc()
@@ -175,6 +175,12 @@ class Shepherd(object):
 
         container = self.docker.containers.get(cdata['Id'])
         container.start()
+
+        external_network = spec.get('external_network')
+        print('EXTERNAL', external_network)
+        if external_network:
+            external_network = self.docker.networks.get(external_network)
+            external_network.connect(container)
 
         # reload to get updated data
         container.reload()
