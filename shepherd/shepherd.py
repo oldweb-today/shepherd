@@ -61,6 +61,10 @@ class Shepherd(object):
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
 
+        response = flock_req.get_cached_response()
+        if response:
+            return response
+
         try:
             flock_name = flock_req.data['flock']
             image_list = flock_req.data['image_list']
@@ -95,10 +99,12 @@ class Shepherd(object):
                     'details': traceback.format_exc()
                    }
 
-        return {
-                'containers': containers,
-                'network': network.name
-               }
+        response = {'containers': containers,
+                    'network': network.name
+                   }
+
+        flock_req.cache_response(response, self.redis)
+        return response
 
     def link_external_container(self, network, link):
         if ':' in link:
@@ -177,7 +183,6 @@ class Shepherd(object):
         container.start()
 
         external_network = spec.get('external_network')
-        print('EXTERNAL', external_network)
         if external_network:
             external_network = self.docker.networks.get(external_network)
             external_network.connect(container)
@@ -311,6 +316,15 @@ class FlockRequest(object):
             expire = None
 
         redis.set(self.key, json.dumps(self.data), ex=expire)
+
+    def get_cached_response(self):
+        return self.data.get('resp')
+
+    def cache_response(self, resp, redis):
+        resp['running'] = '1'
+        self.data['resp'] = resp
+        self.save(redis, expire=None)
+        redis.persist(self.key)
 
     def delete(self, redis):
         redis.delete(self.key)

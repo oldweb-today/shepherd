@@ -44,6 +44,11 @@ class TestShepherd(object):
         assert docker_client.containers.get(containers['busybox']['id']).image.tags[0] == 'test-shepherd/busybox:latest'
         assert docker_client.containers.get(containers['another-box']['id']).image.tags[0] == 'test-shepherd/busybox:latest'
 
+    def test_already_launched(self, shepherd):
+        # duplicate call is the same
+        flock2 = shepherd.start_flock(self.reqid)
+        assert flock2 == TestShepherd.flock
+
     def test_verify_launch(self, docker_client, redis):
         flock = TestShepherd.flock
         containers = flock['containers']

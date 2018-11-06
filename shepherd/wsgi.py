@@ -61,9 +61,10 @@ class Validator():
 
 # ============================================================================
 class APIFlask(Flask):
-    def __init__(self, shepherd, pool):
+    def __init__(self, shepherd, pool, name=None, **kwargs):
         self.shepherd = shepherd
         self.pool = pool
+        name = name or __name__
 
         # Create an APISpec
         self.apispec = APISpec(
@@ -76,7 +77,7 @@ class APIFlask(Flask):
             ],
         )
 
-        super(APIFlask, self).__init__(__name__)
+        super(APIFlask, self).__init__(name, **kwargs)
 
         self.apispec.definition('FlockId', schema=FlockIdSchema)
         self.apispec.definition('FlockRequestOpts', schema=FlockRequestOptsSchema)
@@ -102,8 +103,8 @@ class APIFlask(Flask):
 
 
 # ============================================================================
-def create_app(shepherd, pool):
-    app = APIFlask(shepherd, pool)
+def create_app(shepherd, pool, **kwargs):
+    app = APIFlask(shepherd, pool, **kwargs)
 
     init_routes(app)
 

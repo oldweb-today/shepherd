@@ -30,10 +30,10 @@ class TestFixedPoolApi:
         return res.json
 
     def queue_req(self):
-        res = self.do_req_and_start()
-        assert res['reqid']
-        TestFixedPoolApi.pending.append(res['reqid'])
-        return res
+        res, reqid = self.do_req_and_start()
+        assert reqid
+        TestFixedPoolApi.pending.append(reqid)
+        return res, reqid
 
     def do_req_and_start(self, **params):
         res = self.do_req(params)
@@ -43,23 +43,25 @@ class TestFixedPoolApi:
         reqid = res['reqid']
         res = self.client.post('/api/start_flock/' + reqid)
         data = res.json or {}
-        data['reqid'] = reqid
-        return data
+        return data, reqid
 
     def test_3_requests(self, redis):
         for x in range(1, 4):
-            res = self.do_req_and_start()
+            res, reqid = self.do_req_and_start()
             assert res['containers']['box']
             TestFixedPoolApi.ids.append(res['containers']['box']['id'])
             assert redis.scard('p:fixed-pool:f') == x
 
-            reqid = res['reqid']
+            # duplicate request get same response
+            new_res = self.client.post('/api/start_flock/' + reqid)
+            assert res == new_res.json
+
             #assert redis.get('p:fixed-pool:n2r:{0}'.format(x)) == reqid
             #assert redis.get('p:fixed-pool:r2n:{0}'.format(reqid)) == str(x)
 
     def test_pool_full_request(self, redis):
         for x in range(0, 10):
-            res = self.queue_req()
+            res, reqid = self.queue_req()
             assert res['queued'] == x
 
     def test_expire_queue_next_in_order(self, redis, docker_client):
@@ -109,7 +111,7 @@ class TestFixedPoolApi:
         res = self.start(self.pending[6])
         assert res['queued'] == 3
 
-        res = self.queue_req()
+        res, reqid = self.queue_req()
         assert res['queued'] == 7
 
         # simulate expiry
@@ -118,7 +120,7 @@ class TestFixedPoolApi:
         fixed_pool.remove_request(self.pending[5])
         fixed_pool.remove_request(self.pending[6])
 
-        res = self.start(res['reqid'])
+        res = self.start(reqid)
         assert res['queued'] == 3
 
         res = self.start(self.pending[7])

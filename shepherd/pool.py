@@ -19,7 +19,7 @@ class LaunchAllPool(object):
         self.shepherd = shepherd
         self.redis = redis
 
-        self.duration = duration or self.DEFAULT_DURATION
+        self.duration = int(duration or self.DEFAULT_DURATION)
         self.expire_check = expire_check or self.EXPIRE_CHECK
 
         self.labels = {self.POOL_NAME_LABEL: self.name}
@@ -59,6 +59,9 @@ class LaunchAllPool(object):
 
         return res
 
+    def is_active(self, reqid):
+        return self.redis.sismember(self.flocks_key, reqid)
+
     def curr_size(self):
         return self.redis.scard(self.flocks_key)
 
@@ -68,6 +71,8 @@ class LaunchAllPool(object):
                    'event': ['die', 'start'],
                    'type': 'container'
                   }
+
+        print('Event Loop Started')
 
         for event in self.api.events(decode=True,
                                      filters=filters):
@@ -93,10 +98,12 @@ class LaunchAllPool(object):
         pass
 
     def expire_loop(self):
+        print('Expire Loop Started')
         while self.running:
             for reqid in self.redis.smembers(self.flocks_key):
                 key = self.req_key + reqid
                 if not self.redis.exists(key):
+                    print('Stopping: ' + reqid)
                     self.stop(reqid)
 
             gevent.sleep(self.expire_check)
@@ -150,6 +157,9 @@ class FixedSizePool(LaunchAllPool):
         return res
 
     def start(self, reqid):
+        if self.is_active(reqid):
+            return super(FixedSizePool, self).start(reqid)
+
         pos = self.get_queue_pos(reqid)
         if pos >= 0:
             return {'queued': pos}
@@ -157,7 +167,7 @@ class FixedSizePool(LaunchAllPool):
         res = super(FixedSizePool, self).start(reqid)
 
         if 'error' in res:
-            self.redis.remove_request(reqid)
+            self.remove_request(reqid)
 
         return res
 
