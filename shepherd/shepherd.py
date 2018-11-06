@@ -56,7 +56,7 @@ class Shepherd(object):
 
         return {'reqid': flock_req.reqid}
 
-    def start_flock(self, reqid, labels=None):
+    def start_flock(self, reqid, labels=None, environ=None):
         flock_req = FlockRequest(reqid)
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
@@ -64,6 +64,8 @@ class Shepherd(object):
         response = flock_req.get_cached_response()
         if response:
             return response
+
+        flock_req.update_env(environ)
 
         try:
             flock_name = flock_req.data['flock']
@@ -161,8 +163,8 @@ class Shepherd(object):
 
         name = spec['name'] + '-' + flock_req.reqid
 
-        env = spec.get('environment') or {}
-        env.update(flock_req.data['environment'])
+        environ = spec.get('environment') or {}
+        environ.update(flock_req.data['environ'])
 
         labels = labels or {}
         labels[self.SHEP_REQID_LABEL] = flock_req.reqid
@@ -175,7 +177,7 @@ class Shepherd(object):
             host_config=host_config,
             detach=True,
             hostname=spec['name'],
-            environment=env,
+            environment=environ,
             labels=labels
         )
 
@@ -297,9 +299,15 @@ class FlockRequest(object):
                      'flock': flock_name,
                      'overrides': req_opts.get('overrides', {}),
                      'user_params': req_opts.get('user_params', {}),
-                     'environment': req_opts.get('environment', {}),
+                     'environ': req_opts.get('environ', {}),
                     }
         return self
+
+    def update_env(self, environ):
+        if not environ:
+            return
+
+        self.data['environ'].update(environ)
 
     def get_overrides(self):
         return self.data.get('overrides') or {}

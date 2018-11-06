@@ -40,12 +40,13 @@ class LaunchAllPool(object):
     def request(self, flock_name, req_opts):
         return self.shepherd.request_flock(flock_name, req_opts)
 
-    def start(self, reqid, value=1):
-        res = self.shepherd.start_flock(reqid, labels=self.labels)
+    def start(self, reqid, environ=None, value=1):
+        res = self.shepherd.start_flock(reqid, labels=self.labels,
+                                        environ=environ)
         if 'error' not in res:
             self.redis.sadd(self.flocks_key, reqid)
 
-            self.redis.set(self.req_key + reqid, 1, ex=self.duration)
+            self.redis.set(self.req_key + reqid, value, ex=self.duration)
 
         return res
 
@@ -156,15 +157,15 @@ class FixedSizePool(LaunchAllPool):
 
         return res
 
-    def start(self, reqid):
+    def start(self, reqid, environ=None):
         if self.is_active(reqid):
-            return super(FixedSizePool, self).start(reqid)
+            return super(FixedSizePool, self).start(reqid, environ=environ)
 
         pos = self.get_queue_pos(reqid)
         if pos >= 0:
             return {'queued': pos}
 
-        res = super(FixedSizePool, self).start(reqid)
+        res = super(FixedSizePool, self).start(reqid, environ=environ)
 
         if 'error' in res:
             self.remove_request(reqid)

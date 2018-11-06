@@ -16,7 +16,7 @@ class TestShepherd(object):
 
     def test_reqid(self, shepherd, redis):
         req_opts = dict(overrides={'base-alpine': 'test-shepherd/alpine-derived'},
-                        environment={'FOO': 'BAR2'},
+                        environ={'FOO': 'BAR2'},
                         user_params=self.USER_PARAMS)
 
         res = shepherd.request_flock('test_1', req_opts)
@@ -33,8 +33,9 @@ class TestShepherd(object):
         assert shepherd.is_ancestor_of('test-shepherd/invalid', 'busybox') == False
         assert shepherd.is_ancestor_of('test-shepherd/invalid', 'busybox-invalid') == False
 
-    def test_launch(self, shepherd, docker_client):
-        flock = shepherd.start_flock(self.reqid)
+    def test_start(self, shepherd, docker_client):
+        env = {'ANOTHER': 'VALUE'}
+        flock = shepherd.start_flock(self.reqid, environ=env)
 
         TestShepherd.flock = flock
         containers = flock['containers']
@@ -62,6 +63,9 @@ class TestShepherd(object):
 
         # overriden!
         assert 'FOO=BAR2' in env
+
+        # added at start
+        assert 'ANOTHER=VALUE' in env
 
         # verify ports on busybox set!
         assert set(containers['busybox']['ports'].keys()) == {'port_a', 'port_b'}
@@ -164,6 +168,12 @@ class TestShepherd(object):
 
 
     def test_start_with_external_net(self, docker_client, shepherd):
+        # if this fails, network already exists!
+        # need to clean up manually
+        with pytest.raises(docker.errors.NotFound):
+            assert docker_client.networks.get('test-shepherd-external-net')
+
+
         res = shepherd.request_flock('test_external_net')
 
         reqid = res['reqid']
