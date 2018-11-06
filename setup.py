@@ -37,7 +37,7 @@ setup(
     install_requires=[
         'six',
         'docker',
-        'marshmallow>3.0.0b',
+        'marshmallow>=3.0.0b',
         'redis',
         'apispec<1.0',
         'flask',
