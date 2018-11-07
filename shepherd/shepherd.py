@@ -235,9 +235,10 @@ class Shepherd(object):
 
         return False
 
-    def stop_flock(self, reqid):
+    def stop_flock(self, reqid, grace_time=None, keep_reqid=False):
         flock_req = FlockRequest(reqid)
-        flock_req.delete(self.redis)
+        if not flock_req.load(self.redis):
+            return {'error': 'invalid_reqid'}
 
         try:
             network = self.docker.networks.get(self.NETWORK_NAME.format(reqid))
@@ -262,8 +263,12 @@ class Shepherd(object):
                 pass
 
             try:
-                container.kill()
-                container.remove(v=True, link=True, force=True)
+                if grace_time:
+                    container.stop(timeout=grace_time)
+                else:
+                    container.kill()
+                    container.remove(v=True, link=True, force=True)
+
             except docker.errors.APIError:
                 pass
 
@@ -271,6 +276,11 @@ class Shepherd(object):
             network.remove()
         except:
             pass
+
+        if not keep_reqid:
+            flock_req.delete(self.redis)
+        else:
+            flock_req.reset(self.redis)
 
         return {'success': True}
 
@@ -331,8 +341,12 @@ class FlockRequest(object):
     def cache_response(self, resp, redis):
         resp['running'] = '1'
         self.data['resp'] = resp
-        self.save(redis, expire=None)
+        self.save(redis, expire=-1)
         redis.persist(self.key)
+
+    def reset(self, redis):
+        self.data.pop('resp', '')
+        self.save(redis, expire=-1)
 
     def delete(self, redis):
         redis.delete(self.key)

@@ -1,4 +1,4 @@
-from shepherd.pool import LaunchAllPool, FixedSizePool
+from shepherd.pool import LaunchAllPool, FixedSizePool, PersistentPool
 from shepherd.shepherd import Shepherd
 from shepherd.wsgi import create_app
 
@@ -17,19 +17,42 @@ TEST_FLOCKS = os.path.join(TEST_DIR, 'test_flocks.yaml')
 
 
 # ============================================================================
-class DebugLaunchAllPool(LaunchAllPool):
+class DebugMixin(object):
     def __init__(self, *args, **kwargs):
-        super(DebugLaunchAllPool, self).__init__(*args, **kwargs)
+        super(DebugMixin, self).__init__(*args, **kwargs)
         self.start_events = []
         self.stop_events = []
 
+        self.reqid_starts = {}
+        self.reqid_stops = {}
+
     def handle_die_event(self, reqid, event):
-        super(DebugLaunchAllPool, self).handle_die_event(reqid, event)
+        super(DebugMixin, self).handle_die_event(reqid, event)
         self.stop_events.append(event)
 
+        try:
+            reqid = event['Actor']['Attributes']['owt.shepherd.reqid']
+            self.reqid_stops[reqid] = self.reqid_stops.get(reqid, 0) + 1
+        except:
+            pass
+
     def handle_start_event(self, reqid, event):
-        super(DebugLaunchAllPool, self).handle_start_event(reqid, event)
+        super(DebugMixin, self).handle_start_event(reqid, event)
         self.start_events.append(event)
+
+        try:
+            reqid = event['Actor']['Attributes']['owt.shepherd.reqid']
+            self.reqid_starts[reqid] = self.reqid_starts.get(reqid, 0) + 1
+        except:
+            pass
+
+
+class DebugLaunchAllPool(DebugMixin, LaunchAllPool):
+    pass
+
+
+class DebugPersistentPool(DebugMixin, PersistentPool):
+    pass
 
 
 # ============================================================================
@@ -65,6 +88,21 @@ def fixed_pool(redis, shepherd):
     yield pool
 
     pool.shutdown()
+
+
+@pytest.fixture(scope='module')
+def persist_pool(redis, shepherd):
+    pool = DebugPersistentPool('persist-pool', shepherd, redis,
+                       duration=2.0,
+                       max_size=3,
+                       expire_check=0.3)
+                       #grace_time=0.5)
+
+    yield pool
+
+    pool.shutdown()
+
+
 
 
 @pytest.fixture(scope='module')
