@@ -31,6 +31,10 @@ class TestBasicApi:
         assert res.json['reqid']
         TestBasicApi.reqid = res.json['reqid']
 
+    def test_invalid_pool(self, redis):
+        res = self.client.post('/api/bad-pool/request_flock/test_b')
+        assert res.json == {'error': 'no_such_pool', 'pool': 'bad-pool'}
+
     def test_start_invalid_flock(self, redis):
         res = self.client.post('/api/start_flock/x-invalid')
         assert res.json == {'error': 'invalid_reqid'}
@@ -63,4 +67,5 @@ class TestBasicApi:
 
         assert not redis.exists('p:test-pool:rq:' + self.reqid)
         assert redis.scard('p:test-pool:f') == 0
+
 

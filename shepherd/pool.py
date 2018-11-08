@@ -356,6 +356,8 @@ class PersistentPool(LaunchAllPool):
             self.redis.sadd(self.flocks_key, reqid)
 
             self._mark_wait_duration(reqid)
+        else:
+            self.redis.srem(self.flocks_key, reqid)
 
         return res
 

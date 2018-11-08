@@ -7,8 +7,11 @@ from shepherd.wsgi import create_app
 
 
 @pytest.fixture(scope='module')
-def app(shepherd, persist_pool):
-    wsgi_app = create_app(shepherd, persist_pool)
+def app(shepherd, persist_pool, fixed_pool):
+    pools = {'persist-pool': persist_pool,
+             'fixed-pool': fixed_pool
+            }
+    wsgi_app = create_app(shepherd, pools)
     return wsgi_app
 
 
@@ -29,12 +32,17 @@ class TestPersistPoolApi:
                     raise
 
     def start(self, reqid):
-        res = self.client.post('/api/start_flock/' + reqid)
+        res = self.client.post('/api/persist-pool/start_flock/' + reqid)
+        data = res.json or {}
+        return data
+
+    def stop(self, reqid):
+        res = self.client.post('/api/persist-pool/stop_flock/' + reqid)
         data = res.json or {}
         return data
 
     def do_req(self, params):
-        res = self.client.post('/api/request_flock/test_b', json=params)
+        res = self.client.post('/api/persist-pool/request_flock/test_b', json=params)
         return res.json
 
     def do_req_and_start(self, **params):
@@ -43,7 +51,7 @@ class TestPersistPoolApi:
             return res
 
         reqid = res['reqid']
-        res = self.client.post('/api/start_flock/' + reqid)
+        res = self.client.post('/api/persist-pool/start_flock/' + reqid)
         data = res.json or {}
         TestPersistPoolApi.reqids.append(reqid)
         return data, reqid
@@ -55,7 +63,7 @@ class TestPersistPoolApi:
             assert redis.scard('p:persist-pool:f') == x
 
             # duplicate request get same response
-            new_res = self.client.post('/api/start_flock/' + reqid)
+            new_res = self.client.post('/api/persist-pool/start_flock/' + reqid)
             assert res == new_res.json
 
         def assert_done():
@@ -79,7 +87,7 @@ class TestPersistPoolApi:
             assert redis.scard('p:persist-pool:s') == x
 
             # ensure double start doesn't move position
-            res = self.client.post('/api/start_flock/' + reqid)
+            res = self.client.post('/api/persist-pool/start_flock/' + reqid)
             assert res.json['queued'] == x - 1
 
         for x in range(1, 10):
@@ -99,7 +107,7 @@ class TestPersistPoolApi:
             assert len(persist_pool.stop_events) >= 10
 
 
-        self.sleep_try(0.2, 10.0, assert_done)
+        self.sleep_try(0.2, 15.0, assert_done)
 
     def test_stop_one_run_next(self, redis, persist_pool):
         reqid = redis.srandmember('p:persist-pool:f')
@@ -107,7 +115,7 @@ class TestPersistPoolApi:
         num_started = len(persist_pool.start_events)
         num_stopped = len(persist_pool.stop_events)
 
-        persist_pool.stop(reqid)
+        self.stop(reqid)
 
         def assert_done():
             assert len(persist_pool.stop_events) >= num_stopped + 2
@@ -118,7 +126,7 @@ class TestPersistPoolApi:
     def test_stop_all(self, redis, persist_pool):
         while len(self.reqids) > 0:
             remove = self.reqids.pop()
-            persist_pool.stop(remove)
+            self.stop(remove)
 
         def assert_done():
             assert redis.scard('p:persist-pool:f') == 0
@@ -128,5 +136,5 @@ class TestPersistPoolApi:
 
             assert persist_pool.reqid_starts == persist_pool.reqid_stops
 
-        self.sleep_try(0.2, 10.0, assert_done)
+        self.sleep_try(0.2, 15.0, assert_done)
 

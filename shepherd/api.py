@@ -6,10 +6,10 @@ from flask import Response
 
 # ============================================================================
 def init_routes(app):
-    @app.route('/api/request_flock/<flock>', methods=['POST'], endpoint='request_flock',
+    @app.route(['/api/request_flock/<flock>', '/api/<pool>/request_flock/<flock>'], methods=['POST'], endpoint='request_flock',
                req_schema=FlockRequestOptsSchema,
                resp_schema=GenericResponseSchema)
-    def request_flock(flock, **kwargs):
+    def request_flock(flock, pool='', **kwargs):
         """Request a new flock
         ---
         post:
@@ -38,12 +38,12 @@ def init_routes(app):
                 404:
                     schema: GenericResponseSchema
         """
-        return app.pool.request(flock, kwargs.get('request'))
+        return app.get_pool(pool).request(flock, kwargs.get('request'))
 
 
-    @app.route('/api/start_flock/<reqid>', methods=['POST'],
+    @app.route(['/api/start_flock/<reqid>', '/api/<pool>/start_flock/<reqid>'], methods=['POST'],
                resp_schema=LaunchResponseSchema)
-    def start_flock(reqid):
+    def start_flock(reqid, pool=''):
         """Start a flock from reqid
         ---
         post:
@@ -65,11 +65,11 @@ def init_routes(app):
                 404:
                     schema: GenericResponseSchema
         """
-        return app.pool.start(reqid)
+        return app.get_pool(pool).start(reqid)
 
-    @app.route('/api/stop_flock/<reqid>', methods=['POST'],
+    @app.route(['/api/stop_flock/<reqid>', '/api/<pool>/stop_flock/<reqid>'], methods=['POST'],
                resp_schema=GenericResponseSchema)
-    def stop_flock(reqid):
+    def stop_flock(reqid, pool=''):
         """Stop a flock from reqid
         ---
         post:
@@ -91,7 +91,7 @@ def init_routes(app):
                 404:
                     schema: GenericResponseSchema
         """
-        app.pool.stop(reqid)
+        app.get_pool(pool).stop(reqid)
         return {'success': True}
 
 
