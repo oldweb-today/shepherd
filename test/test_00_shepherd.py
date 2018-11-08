@@ -1,3 +1,5 @@
+from gevent.monkey import patch_all; patch_all()
+
 import docker.errors
 import fakeredis
 import json
@@ -226,5 +228,33 @@ class TestShepherd(object):
 
         with pytest.raises(docker.errors.NotFound):
             assert docker_client.networks.get('test-shepherd-external-net')
+
+    def test_pause_resume(self, shepherd, docker_client):
+        res = shepherd.request_flock('test_b')
+
+        reqid = res['reqid']
+
+        response = shepherd.start_flock(reqid, pausable=True)
+
+        for container in response['containers'].values():
+            assert docker_client.containers.get(container['id']).status == 'running'
+
+        res = shepherd.pause_flock(reqid, grace_time=1)
+
+        time.sleep(1.5)
+
+        for container in response['containers'].values():
+            assert docker_client.containers.get(container['id']).status == 'exited'
+
+        res = shepherd.resume_flock(reqid)
+
+        for container in response['containers'].values():
+            assert docker_client.containers.get(container['id']).status == 'running'
+
+        res = shepherd.stop_flock(reqid)
+
+        for container in response['containers'].values():
+            with pytest.raises(docker.errors.NotFound):
+                docker_client.containers.get(container['id'])
 
 

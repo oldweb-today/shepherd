@@ -90,13 +90,15 @@ def fixed_pool(redis, shepherd):
     pool.shutdown()
 
 
-@pytest.fixture(scope='module')
-def persist_pool(redis, shepherd):
+@pytest.fixture(scope='module', params=['remove-on-pause', 'stop-on-pause'])
+def persist_pool(request, redis, shepherd):
+    stop_on_pause = (request.param=='stop-on-pause')
     pool = DebugPersistentPool('persist-pool', shepherd, redis,
                        duration=2.0,
                        max_size=3,
-                       expire_check=0.3)
-                       #grace_time=0.5)
+                       expire_check=0.3,
+                       grace_time=1,
+                       stop_on_pause=stop_on_pause)
 
     yield pool
 

@@ -40,28 +40,38 @@ class LaunchAllPool(object):
     def request(self, flock_name, req_opts):
         return self.shepherd.request_flock(flock_name, req_opts)
 
-    def start(self, reqid, environ=None, value=1):
-        res = self.shepherd.start_flock(reqid, labels=self.labels,
-                                        environ=environ)
+    def _mark_wait_duration(self, reqid, value=1):
+        self.redis.set(self.req_key + reqid, value, ex=self.duration)
+
+    def _mark_stopped(self, reqid):
+        self.redis.delete(self.req_key + reqid)
+
+    def start(self, reqid, **kwargs):
+        res = self.shepherd.start_flock(reqid,
+                                        labels=self.labels,
+                                        **kwargs)
+
         if 'error' not in res:
             self.redis.sadd(self.flocks_key, reqid)
 
-            self.redis.set(self.req_key + reqid, value, ex=self.duration)
+            self._mark_wait_duration(reqid)
 
         return res
 
-    def stop(self, reqid, expired=False, keep_reqid=False, grace_time=None):
-        res = self.shepherd.stop_flock(reqid, keep_reqid=keep_reqid,
-                                              grace_time=grace_time)
+    def stop(self, reqid, **kwargs):
+        res = self.shepherd.stop_flock(reqid, **kwargs)
 
         if 'error' not in res:
             self.redis.srem(self.flocks_key, reqid)
 
-            self.redis.delete(self.req_key + reqid)
+            self._mark_stopped(reqid)
 
         return res
 
-    def is_active(self, reqid):
+    def pause(self, reqid):
+        return self.stop(reqid)
+
+    def is_running(self, reqid):
         return self.redis.sismember(self.flocks_key, reqid)
 
     def curr_size(self):
@@ -106,7 +116,7 @@ class LaunchAllPool(object):
                 key = self.req_key + reqid
                 if not self.redis.exists(key):
                     print('Expired: ' + reqid)
-                    self.stop(reqid, expired=True)
+                    self.pause(reqid)
 
             gevent.sleep(self.expire_check)
 
@@ -155,7 +165,7 @@ class FixedSizePool(LaunchAllPool):
         return res
 
     def start(self, reqid, environ=None):
-        if self.is_active(reqid):
+        if self.is_running(reqid):
             return super(FixedSizePool, self).start(reqid, environ=environ)
 
         pos = self.get_queue_pos(reqid)
@@ -253,15 +263,18 @@ class PersistentPool(LaunchAllPool):
 
         self.pool_wait_set = self.POOL_WAIT_SET.format(id=self.name)
 
-        self.grace_time = kwargs.get('grace_time', None)
+        self.grace_time = int(kwargs.get('grace_time', 0))
+
+        self.stop_on_pause = kwargs.get('stop_on_pause', False)
 
     def num_avail(self):
         max_size = self.redis.hget(self.pool_key, 'max_size')
         return int(max_size) - self.curr_size()
 
     def start(self, reqid, environ=None):
-        if self.is_active(reqid):
-            return super(PersistentPool, self).start(reqid, environ=environ)
+        if self.is_running(reqid):
+            return super(PersistentPool, self).start(reqid, environ=environ,
+                                                     pausable=self.stop_on_pause)
 
         elif self.redis.sismember(self.pool_wait_set, reqid):
             return {'queued': self._find_wait_pos(reqid)}
@@ -270,7 +283,8 @@ class PersistentPool(LaunchAllPool):
             pos = self._push_wait(reqid)
             return {'queued': pos - 1}
 
-        return super(PersistentPool, self).start(reqid, environ=environ)
+        return super(PersistentPool, self).start(reqid, environ=environ,
+                                                 pausable=self.stop_on_pause)
 
     def _push_wait(self, reqid):
         self.redis.sadd(self.pool_wait_set, reqid)
@@ -294,43 +308,69 @@ class PersistentPool(LaunchAllPool):
         except:
             return -1
 
-    def stop(self, reqid, expired=False, **kwargs):
-        stop_res = {'success': True}
+    def pause(self, reqid):
+        next_reqid = self._pop_wait()
 
-        # if currently running
-        if self.is_active(reqid):
-            # remove so is not considered for restart by expire loop
-            #if not expired:
-            #    self.redis.srem(self.flocks_key, reqid)
+        #if no next key, extend this for same duration
+        if next_reqid is None:
+            if self.is_running(reqid) and self.shepherd.is_valid_flock(reqid):
+                self._mark_wait_duration(reqid)
 
-            next_reqid = self._pop_wait()
-
-            # if stopping due to expiration:
-            if expired:
-
-                #if no next key, extend this for same duration
-                if next_reqid is None:
-                    self.redis.set(self.req_key + reqid, 1, ex=self.duration)
-                    return {'success': True}
-                else:
-                    self._push_wait(reqid)
-
-            stop_res = super(PersistentPool, self).stop(reqid, expired=expired,
-                                                        keep_reqid=expired,
-                                                        grace_time=self.grace_time)
-
-            # if next reqid, queue it up next
-            if next_reqid:
-                res = super(PersistentPool, self).start(next_reqid)
-
-                # ensure not running for good
-                #if 'error' in res:
-                #    self.redis.srem(self.flocks_key, reqid)
+            return {'success': True}
 
         else:
-            stop_res = super(PersistentPool, self).stop(reqid, expired=expired)
+            self._push_wait(reqid)
 
-            self._remove_wait(reqid)
+            self.redis.srem(self.flocks_key, reqid)
+
+            self._mark_stopped(reqid)
+
+            if not self.stop_on_pause:
+                pause_res = self.shepherd.stop_flock(reqid,
+                                                     keep_reqid=True,
+                                                     grace_time=self.grace_time)
+            else:
+                pause_res = self.shepherd.pause_flock(reqid,
+                                                      grace_time=self.grace_time)
+
+            self.resume(next_reqid)
+
+            return pause_res
+
+    def resume(self, reqid):
+        if not reqid:
+            return
+
+        if not self.stop_on_pause:
+            res = self.shepherd.start_flock(reqid, labels=self.labels)
+
+        else:
+            res = self.shepherd.resume_flock(reqid)
+
+            if res.get('error') == 'not_paused' and res.get('state') == 'new':
+                res = self.shepherd.start_flock(reqid,
+                                                labels=self.labels,
+                                                pausable=True)
+
+        if 'error' not in res:
+            self.redis.sadd(self.flocks_key, reqid)
+
+            self._mark_wait_duration(reqid)
+
+        return res
+
+    def stop(self, reqid, **kwargs):
+        removed_running = self.redis.srem(self.flocks_key, reqid)
+
+        # remove from wait list always just in case
+        self._remove_wait(reqid)
+
+        # stop
+        stop_res = super(PersistentPool, self).stop(reqid, grace_time=self.grace_time)
+
+        # only attempt to resume next if was currently running
+        # and stopping succeeded
+        if removed_running and 'error' not in stop_res:
+            self.resume(self._pop_wait())
 
         return stop_res
-

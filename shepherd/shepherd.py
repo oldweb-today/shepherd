@@ -10,6 +10,8 @@ from redis import StrictRedis
 
 from shepherd.schema import AllFlockSchema, InvalidParam
 
+import gevent
+
 
 # ============================================================================
 class Shepherd(object):
@@ -20,6 +22,8 @@ class Shepherd(object):
     USER_PARAMS_KEY = 'up:{0}'
 
     SHEP_REQID_LABEL = 'owt.shepherd.reqid'
+
+    DEFAULT_REQ_TTL = 120
 
     def __init__(self, redis, networks_templ):
         self.flocks = {}
@@ -52,11 +56,16 @@ class Shepherd(object):
             return ip.msg
 
         flock_req.data['image_list'] = image_list
+        ttl = ttl or self.DEFAULT_REQ_TTL
         flock_req.save(self.redis, expire=ttl)
 
         return {'reqid': flock_req.reqid}
 
-    def start_flock(self, reqid, labels=None, environ=None):
+    def is_valid_flock(self, reqid):
+        flock_req = FlockRequest(reqid)
+        return flock_req.load(self.redis)
+
+    def start_flock(self, reqid, labels=None, environ=None, pausable=False):
         flock_req = FlockRequest(reqid)
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
@@ -85,8 +94,13 @@ class Shepherd(object):
             for link in links:
                 self.link_external_container(network, link)
 
+            # auto remove if not pausable
+            auto_remove = not pausable
+
             for image, spec in zip(image_list, flock['containers']):
-                container, info = self.run_container(image, spec, flock_req, network, labels=labels)
+                container, info = self.run_container(image, spec, flock_req, network,
+                                                     labels=labels,
+                                                     auto_remove=auto_remove)
                 containers[spec['name']] = info
 
         except:
@@ -140,7 +154,9 @@ class Shepherd(object):
 
         return ports
 
-    def run_container(self, image, spec, flock_req, network, labels=None):
+    def run_container(self, image, spec, flock_req, network, labels=None,
+                      auto_remove=False):
+
         api = self.docker.api
 
         net_config = api.create_networking_config({
@@ -157,7 +173,7 @@ class Shepherd(object):
             port_values = None
             port_bindings = None
 
-        host_config = api.create_host_config(auto_remove=True,
+        host_config = api.create_host_config(auto_remove=auto_remove,
                                              cap_add=['ALL'],
                                              port_bindings=port_bindings)
 
@@ -203,8 +219,10 @@ class Shepherd(object):
         return container, info
 
     def create_flock_network(self, flock_req):
-        network = self.docker.networks.create(self.NETWORK_NAME.format(flock_req.reqid))
-        return network
+        return self.docker.networks.create(self.NETWORK_NAME.format(flock_req.reqid))
+
+    def get_flock_network(self, flock_req):
+        return self.docker.networks.get(self.NETWORK_NAME.format(flock_req.reqid))
 
     def resolve_image_list(self, specs, overrides):
         image_list = []
@@ -235,17 +253,22 @@ class Shepherd(object):
 
         return False
 
-    def stop_flock(self, reqid, grace_time=None, keep_reqid=False):
+    def stop_flock(self, reqid, keep_reqid=False, grace_time=None):
         flock_req = FlockRequest(reqid)
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
 
+        if not keep_reqid:
+            flock_req.delete(self.redis)
+        else:
+            flock_req.reset(self.redis)
+
         try:
-            network = self.docker.networks.get(self.NETWORK_NAME.format(reqid))
+            network = self.get_flock_network(flock_req)
             containers = network.containers
         except:
             network = None
-            containers = self.docker.containers.list(filters={'label': self.SHEP_REQID_LABEL + '=' + reqid})
+            containers = self.get_flock_containers(flock_req)
 
         for container in containers:
             if container.labels.get(self.SHEP_REQID_LABEL) != reqid:
@@ -264,10 +287,14 @@ class Shepherd(object):
 
             try:
                 if grace_time:
-                    container.stop(timeout=grace_time)
+                    self._do_graceful_stop(container, grace_time)
                 else:
                     container.kill()
-                    container.remove(v=True, link=True, force=True)
+            except docker.errors.APIError as e:
+                pass
+
+            try:
+                container.remove(v=True, link=False, force=True)
 
             except docker.errors.APIError:
                 pass
@@ -277,10 +304,71 @@ class Shepherd(object):
         except:
             pass
 
-        if not keep_reqid:
-            flock_req.delete(self.redis)
-        else:
-            flock_req.reset(self.redis)
+        return {'success': True}
+
+    def _do_graceful_stop(self, container, grace_time):
+        def do_stop():
+            try:
+                container.stop(timeout=grace_time)
+            except docker.errors.APIError as e:
+                pass
+
+        gevent.spawn(do_stop)
+
+    def get_flock_containers(self, flock_req):
+        return self.docker.containers.list(all=True, filters={'label': self.SHEP_REQID_LABEL + '=' + flock_req.reqid})
+
+    def pause_flock(self, reqid, grace_time=1):
+        flock_req = FlockRequest(reqid)
+        if not flock_req.load(self.redis):
+            return {'error': 'invalid_reqid'}
+
+        state = flock_req.get_state()
+        if state != 'running':
+            return {'error': 'not_running', 'state': state}
+
+        try:
+            containers = self.get_flock_containers(flock_req)
+
+            for container in containers:
+                self._do_graceful_stop(container, grace_time)
+
+            flock_req.set_state('paused', self.redis)
+
+        except:
+            traceback.print_exc()
+
+            return {'error': 'pause_failed',
+                    'details': traceback.format_exc()
+                   }
+
+        return {'success': True}
+
+    def resume_flock(self, reqid):
+        flock_req = FlockRequest(reqid)
+        if not flock_req.load(self.redis):
+            return {'error': 'invalid_reqid'}
+
+        state = flock_req.get_state()
+        if state != 'paused':
+            return {'error': 'not_paused', 'state': state}
+
+        try:
+            containers = self.get_flock_containers(flock_req)
+
+            network = self.get_flock_network(flock_req)
+
+            for container in containers:
+                container.start()
+
+            flock_req.set_state('running', self.redis)
+
+        except:
+            traceback.print_exc()
+
+            return {'error': 'resume_failed',
+                    'details': traceback.format_exc()
+                   }
 
         return {'success': True}
 
@@ -292,8 +380,6 @@ class Shepherd(object):
 # ===========================================================================
 class FlockRequest(object):
     REQ_KEY = 'req:{0}'
-
-    REQ_TTL = 120
 
     def __init__(self, reqid=None):
         if not reqid:
@@ -310,6 +396,7 @@ class FlockRequest(object):
                      'overrides': req_opts.get('overrides', {}),
                      'user_params': req_opts.get('user_params', {}),
                      'environ': req_opts.get('environ', {}),
+                     'state': 'new',
                     }
         return self
 
@@ -322,31 +409,34 @@ class FlockRequest(object):
     def get_overrides(self):
         return self.data.get('overrides') or {}
 
+    def get_state(self):
+        return self.data.get('state', 'new')
+
+    def set_state(self, state, redis):
+        self.data['state'] = state
+        self.save(redis)
+
     def load(self, redis):
         data = redis.get(self.key)
         self.data = json.loads(data) if data else {}
         return self.data != {}
 
     def save(self, redis, expire=None):
-        if expire is None:
-            expire = self.REQ_TTL
-        elif expire == -1:
-            expire = None
-
         redis.set(self.key, json.dumps(self.data), ex=expire)
+        if expire is None:
+            redis.persist(self.key)
 
     def get_cached_response(self):
         return self.data.get('resp')
 
     def cache_response(self, resp, redis):
-        resp['running'] = '1'
+        self.data['state'] = 'running'
         self.data['resp'] = resp
-        self.save(redis, expire=-1)
-        redis.persist(self.key)
+        self.save(redis)
 
     def reset(self, redis):
         self.data.pop('resp', '')
-        self.save(redis, expire=-1)
+        self.save(redis)
 
     def delete(self, redis):
         redis.delete(self.key)
