@@ -101,7 +101,12 @@ class TestShepherd(object):
 
     def test_stop(self, docker_client, shepherd, redis):
         time.sleep(0.5)
+
+        assert shepherd.is_valid_flock(self.reqid)
+
         res = shepherd.stop_flock(self.reqid)
+
+        assert not shepherd.is_valid_flock(self.reqid)
 
         assert res == {'success': True}
 
@@ -234,6 +239,8 @@ class TestShepherd(object):
 
         reqid = res['reqid']
 
+        assert shepherd.is_valid_flock(reqid, 'new')
+
         response = shepherd.start_flock(reqid, pausable=True)
 
         for container in response['containers'].values():
@@ -243,18 +250,31 @@ class TestShepherd(object):
 
         time.sleep(1.5)
 
+        assert shepherd.is_valid_flock(reqid, 'paused')
+
         for container in response['containers'].values():
             assert docker_client.containers.get(container['id']).status == 'exited'
 
         res = shepherd.resume_flock(reqid)
 
+        assert shepherd.is_valid_flock(reqid, 'running')
+
         for container in response['containers'].values():
             assert docker_client.containers.get(container['id']).status == 'running'
 
-        res = shepherd.stop_flock(reqid)
+        res = shepherd.stop_flock(reqid, keep_reqid=True)
 
+        # reqid not removed yet, set to 'stopped'
+        assert shepherd.is_valid_flock(reqid, 'stopped')
+
+        # containers removed
         for container in response['containers'].values():
             with pytest.raises(docker.errors.NotFound):
                 docker_client.containers.get(container['id'])
 
+        res = shepherd.stop_flock(reqid)
+
+        # reqid removed
+        assert not shepherd.is_valid_flock(reqid, 'stopped')
+        assert not shepherd.is_valid_flock(reqid)
 

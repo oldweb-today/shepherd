@@ -61,9 +61,15 @@ class Shepherd(object):
 
         return {'reqid': flock_req.reqid}
 
-    def is_valid_flock(self, reqid):
+    def is_valid_flock(self, reqid, ensure_state=None):
         flock_req = FlockRequest(reqid)
-        return flock_req.load(self.redis)
+        if not flock_req.load(self.redis):
+            return False
+
+        if ensure_state and ensure_state != flock_req.get_state():
+            return False
+
+        return True
 
     def start_flock(self, reqid, labels=None, environ=None, pausable=False):
         flock_req = FlockRequest(reqid)
@@ -261,7 +267,7 @@ class Shepherd(object):
         if not keep_reqid:
             flock_req.delete(self.redis)
         else:
-            flock_req.reset(self.redis)
+            flock_req.stop(self.redis)
 
         try:
             network = self.get_flock_network(flock_req)
@@ -434,8 +440,9 @@ class FlockRequest(object):
         self.data['resp'] = resp
         self.save(redis)
 
-    def reset(self, redis):
+    def stop(self, redis):
         self.data.pop('resp', '')
+        self.data['state'] = 'stopped'
         self.save(redis)
 
     def delete(self, redis):

@@ -313,7 +313,7 @@ class PersistentPool(LaunchAllPool):
 
         #if no next key, extend this for same duration
         if next_reqid is None:
-            if self.is_running(reqid) and self.shepherd.is_valid_flock(reqid):
+            if self.is_running(reqid) and self.shepherd.is_valid_flock(reqid, 'running'):
                 self._mark_wait_duration(reqid)
 
             return {'success': True}
