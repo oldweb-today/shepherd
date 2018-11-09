@@ -100,8 +100,8 @@ class Shepherd(object):
             for link in links:
                 self.link_external_container(network, link)
 
-            # auto remove if not pausable
-            auto_remove = not pausable
+            # auto remove if not pausable and flock auto_remove is true
+            auto_remove = not pausable and flock.get('auto_remove', True)
 
             for image, spec in zip(image_list, flock['containers']):
                 container, info = self.run_container(image, spec, flock_req, network,

@@ -32,8 +32,8 @@ class FlockIdSchema(Schema):
 
 class FlockRequestOptsSchema(Schema):
     overrides = string_dict()
-    user_params = string_dict()
-    environment = string_dict()
+    user_params = fields.Dict()
+    environ = string_dict()
 
 class GenericResponseSchema(Schema):
     reqid = fields.String()

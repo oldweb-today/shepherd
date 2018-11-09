@@ -41,7 +41,7 @@ class Validator():
                 req_params = self.req_schema().load(input_data)
                 kwargs['request'] = req_params
             except marshmallow.exceptions.ValidationError as ve:
-                return self.make_response({'error': str(ve)}, 400)
+                return self.make_response({'error': 'invalid_options', 'details': str(ve)}, 400)
 
         try:
             resp = self.the_func(*args, **kwargs)

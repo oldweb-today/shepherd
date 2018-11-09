@@ -17,7 +17,7 @@ class TestBasicApi:
 
     def test_request_invalid_req_params(self):
         res = self.client.post('/api/request_flock/test_1', json={'blah': 'foo', 'user_params': {'a': 'b'}})
-        assert res.json == {'error': "{'blah': ['Unknown field.']}"}
+        assert res.json == {'details': "{'blah': ['Unknown field.']}", 'error': 'invalid_options'}
         assert res.status_code == 400
 
     def test_request_invalid_overrides(self):
@@ -26,8 +26,16 @@ class TestBasicApi:
                             'image_expected': 'test-shepherd/busybox',
                             'image_passed': 'test-shepherd/alpine'}
 
+    def test_request_invalid_environ_type(self):
+        res = self.client.post('/api/request_flock/test_b', json={'user_params': {'a': 'b'},
+                                                                  'environ': {'FOO': True}})
+
+        assert res.json['error']
+        assert 'Not a valid string' in res.json['details']
+
     def test_request_flock(self):
-        res = self.client.post('/api/request_flock/test_b', json={'user_params': {'a': 'b'}})
+        res = self.client.post('/api/request_flock/test_b', json={'user_params': {'a': 'b'},
+                                                                  'environ': {'FOO': 'BAR'}})
         assert res.json['reqid']
         TestBasicApi.reqid = res.json['reqid']
 
