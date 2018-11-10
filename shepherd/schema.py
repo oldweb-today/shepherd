@@ -2,7 +2,7 @@ from marshmallow import Schema, fields, pprint
 from marshmallow.utils import RAISE
 
 def string_dict():
-    return fields.Dict(keys=fields.String(), values=fields.String())
+    return fields.Dict(keys=fields.String())
 
 class ContainerSchema(Schema):
     name = fields.String()
@@ -33,7 +33,7 @@ class FlockIdSchema(Schema):
 
 class FlockRequestOptsSchema(Schema):
     overrides = string_dict()
-    user_params = fields.Dict()
+    user_params = string_dict()
     environ = string_dict()
 
 class GenericResponseSchema(Schema):

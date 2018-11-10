@@ -220,6 +220,8 @@ class Shepherd(object):
         info['ports'] = self.get_ports(container, ports)
 
         if info['ip'] and flock_req.data['user_params'] and spec.get('set_user_params'):
+            # add reqid to userparams
+            flock_req.data['user_params']['reqid'] = flock_req.reqid
             self.redis.hmset(self.USER_PARAMS_KEY.format(info['ip']), flock_req.data['user_params'])
 
         return container, info

@@ -26,12 +26,11 @@ class TestBasicApi:
                             'image_expected': 'test-shepherd/busybox',
                             'image_passed': 'test-shepherd/alpine'}
 
-    def test_request_invalid_environ_type(self):
+    def test_request_environ_allow_bool(self):
         res = self.client.post('/api/request_flock/test_b', json={'user_params': {'a': 'b'},
                                                                   'environ': {'FOO': True}})
 
-        assert res.json['error']
-        assert 'Not a valid string' in res.json['details']
+        assert res.json['reqid']
 
     def test_request_flock(self):
         res = self.client.post('/api/request_flock/test_b', json={'user_params': {'a': 'b'},

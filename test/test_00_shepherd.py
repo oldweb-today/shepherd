@@ -91,7 +91,9 @@ class TestShepherd(object):
             user_params_key = Shepherd.USER_PARAMS_KEY.format(info['ip'])
 
             if name == 'base-alpine':
-                assert redis.hgetall(user_params_key) == self.USER_PARAMS
+                params_with_reqid = self.USER_PARAMS.copy()
+                params_with_reqid['reqid'] = self.reqid
+                assert redis.hgetall(user_params_key) == params_with_reqid
 
             else:
                 assert not redis.exists(user_params_key)
