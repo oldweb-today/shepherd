@@ -204,19 +204,25 @@ class Shepherd(object):
         )
 
         container = self.docker.containers.get(cdata['Id'])
-        container.start()
 
         external_network = spec.get('external_network')
         if external_network:
             external_network = self.docker.networks.get(external_network)
             external_network.connect(container)
 
+        container.start()
+
         # reload to get updated data
         container.reload()
 
         info = {}
         info['id'] = self.short_id(container)
-        info['ip'] = self.get_ip(container, network)
+
+        if external_network:
+            info['ip'] = self.get_ip(container, external_network)
+        else:
+            info['ip'] = self.get_ip(container, network)
+
         info['ports'] = self.get_ports(container, ports)
 
         if info['ip'] and flock_req.data['user_params'] and spec.get('set_user_params'):

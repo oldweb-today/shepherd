@@ -1,5 +1,4 @@
 from marshmallow import Schema, fields, pprint
-from marshmallow.utils import RAISE
 
 def string_dict():
     return fields.Dict(keys=fields.String())
