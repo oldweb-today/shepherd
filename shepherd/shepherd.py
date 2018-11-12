@@ -25,6 +25,8 @@ class Shepherd(object):
 
     DEFAULT_REQ_TTL = 120
 
+    DEFAULT_SHM_SIZE = '1g'
+
     def __init__(self, redis, networks_templ):
         self.flocks = {}
         self.docker = docker.from_env()
@@ -181,6 +183,8 @@ class Shepherd(object):
 
         host_config = api.create_host_config(auto_remove=auto_remove,
                                              cap_add=['ALL'],
+                                             shm_size=spec.get('shm_size', self.DEFAULT_SHM_SIZE),
+                                             security_opt=['apparmor=unconfined'],
                                              port_bindings=port_bindings)
 
         name = spec['name'] + '-' + flock_req.reqid
