@@ -22,9 +22,18 @@ class NetworkPool(object):
         name = self.new_name()
         return self.docker.networks.create(name, labels=self.labels)
 
+    def disconnect_all(self, network):
+        network.reload()
+        for container in network.containers:
+            try:
+                network.disconnect(container)
+            except:
+                pass
+
     def remove_network(self, network):
         try:
             assert(network.attrs['Labels'][self.NETWORK_LABEL] == self.pool_name)
+            self.disconnect_all(network)
             network.remove()
             return True
         except Exception as e:
@@ -70,9 +79,7 @@ class CachedNetworkPool(NetworkPool):
             if self.redis.scard(self.networks_key) >= self.max_size:
                 return super(CachedNetworkPool, self).remove_network(network)
 
-            network.reload()
-            if len(network.containers) != 0:
-                return False
+            self.disconnect_all(network)
 
             self.redis.sadd(self.networks_key, network.name)
             return True

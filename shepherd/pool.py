@@ -429,7 +429,7 @@ class PersistentPool(LaunchAllPool):
 
         # only attempt to resume next if was currently running
         # and stopping succeeded
-        if removed_res and 'error' not in stop_res:
+        if removed_res and 'error' not in stop_res and not kwargs.get('no_replace'):
             self.resume(self._pop_wait())
 
         return stop_res

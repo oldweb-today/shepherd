@@ -288,10 +288,10 @@ class Shepherd(object):
 
         try:
             network = self.get_network(flock_req)
-            containers = network.containers
         except:
             network = None
-            containers = self.get_flock_containers(flock_req)
+
+        containers = self.get_flock_containers(flock_req)
 
         for container in containers:
             if container.labels.get(self.SHEP_REQID_LABEL) != reqid:
