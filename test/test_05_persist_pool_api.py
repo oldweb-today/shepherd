@@ -107,7 +107,7 @@ class TestPersistPoolApi:
             assert len(persist_pool.stop_events) >= 10
 
 
-        self.sleep_try(0.2, 15.0, assert_done)
+        self.sleep_try(0.2, 20.0, assert_done)
 
     def test_stop_one_run_next(self, redis, persist_pool):
         reqid = redis.srandmember('p:persist-pool:f')
@@ -136,5 +136,5 @@ class TestPersistPoolApi:
 
             assert persist_pool.reqid_starts == persist_pool.reqid_stops
 
-        self.sleep_try(0.2, 15.0, assert_done)
+        self.sleep_try(0.2, 20.0, assert_done)
 

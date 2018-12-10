@@ -98,7 +98,8 @@ def persist_pool(request, redis, shepherd):
                        max_size=3,
                        expire_check=0.3,
                        grace_time=1,
-                       stop_on_pause=stop_on_pause)
+                       stop_on_pause=stop_on_pause,
+                       network_pool_size=2)
 
     yield pool
 
@@ -130,6 +131,23 @@ def docker_client():
 
     for image in docker_cli.images.list('test-shepherd/*'):
         docker_cli.images.remove(image.tags[0], force=True)
+
+
+@pytest.fixture(scope='module')
+def external_net(docker_client):
+    with pytest.raises(docker.errors.NotFound):
+        assert docker_client.networks.get('test-shepherd-external-net')
+
+    net = docker_client.networks.create('test-shepherd-external-net')
+
+    try:
+        yield net
+
+    finally:
+        net.remove()
+
+    with pytest.raises(docker.errors.NotFound):
+        assert docker_client.networks.get('test-shepherd-external-net')
 
 
 

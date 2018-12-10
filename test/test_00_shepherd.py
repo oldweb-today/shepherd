@@ -175,14 +175,7 @@ class TestShepherd(object):
         with pytest.raises(docker.errors.NotFound):
             assert docker_client.networks.get(res['network'])
 
-
-    def test_start_with_external_net(self, docker_client, shepherd):
-        # if this fails, network already exists!
-        # need to clean up manually
-        with pytest.raises(docker.errors.NotFound):
-            assert docker_client.networks.get('test-shepherd-external-net')
-
-
+    def test_no_external_net_error(self,docker_client, shepherd):
         res = shepherd.request_flock('test_external_net')
 
         reqid = res['reqid']
@@ -191,11 +184,11 @@ class TestShepherd(object):
 
         assert res['error'] == 'start_error'
 
-        net = None
+        TestShepherd.net_reqid = reqid
 
+    def test_start_with_external_net(self, docker_client, shepherd, external_net):
+        reqid = self.net_reqid
         try:
-            net = docker_client.networks.create('test-shepherd-external-net')
-
             res = shepherd.start_flock(reqid)
 
             assert res['error'] == 'invalid_reqid'
@@ -213,11 +206,14 @@ class TestShepherd(object):
 
             # ensure external network only in container-2
             assert 'test-shepherd-external-net' not in container_1.attrs['NetworkSettings']['Networks']
-            assert 'test-shepherd-external-net' in container_2.attrs['NetworkSettings']['Networks']
+            assert len(container_1.attrs['NetworkSettings']['Networks']) == 1
 
-            net.reload()
-            assert len(net.containers) == 1
-            assert net.containers[0] == container_2
+            assert 'test-shepherd-external-net' in container_2.attrs['NetworkSettings']['Networks']
+            assert len(container_2.attrs['NetworkSettings']['Networks']) == 2
+
+            external_net.reload()
+            assert len(external_net.containers) == 1
+            assert external_net.containers[0] == container_2
 
         finally:
             try:
@@ -225,16 +221,8 @@ class TestShepherd(object):
             except:
                 pass
 
-
-        try:
-            net.reload()
-            assert net.containers == []
-
-        finally:
-            net.remove()
-
-        with pytest.raises(docker.errors.NotFound):
-            assert docker_client.networks.get('test-shepherd-external-net')
+        external_net.reload()
+        assert external_net.containers == []
 
     def test_pause_resume(self, shepherd, docker_client):
         res = shepherd.request_flock('test_b')

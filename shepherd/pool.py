@@ -1,4 +1,5 @@
 import gevent
+from shepherd.network_pool import CachedNetworkPool
 
 
 # ============================================================================
@@ -10,11 +11,14 @@ class LaunchAllPool(object):
 
     POOL_REQ = 'p:{id}:rq:'
 
+    POOL_NETWORK_TEMPL = 'shepherd-net:%s:{0}'
+
     DEFAULT_DURATION = 3600
 
     EXPIRE_CHECK = 30
 
-    def __init__(self, name, shepherd, redis, duration=None, expire_check=None, **kwargs):
+    def __init__(self, name, shepherd, redis, duration=None, expire_check=None,
+                 network_pool_size=0, **kwargs):
         self.name = name
         self.shepherd = shepherd
         self.redis = redis
@@ -30,6 +34,14 @@ class LaunchAllPool(object):
         self.req_key = self.POOL_REQ.format(id=self.name)
 
         self.api = shepherd.docker.api
+
+        self.network_pool = None
+
+        if network_pool_size > 0:
+            self.network_pool = CachedNetworkPool(shepherd.docker,
+                                                  redis=self.redis,
+                                                  network_templ=self.POOL_NETWORK_TEMPL % self.name,
+                                                  max_size=network_pool_size)
 
         self.running = True
 
@@ -49,6 +61,7 @@ class LaunchAllPool(object):
     def start(self, reqid, **kwargs):
         res = self.shepherd.start_flock(reqid,
                                         labels=self.labels,
+                                        network_pool=self.network_pool,
                                         **kwargs)
 
         if 'error' not in res:
@@ -59,7 +72,9 @@ class LaunchAllPool(object):
         return res
 
     def stop(self, reqid, **kwargs):
-        res = self.shepherd.stop_flock(reqid, **kwargs)
+        res = self.shepherd.stop_flock(reqid,
+                                       network_pool=self.network_pool,
+                                       **kwargs)
 
         if 'error' not in res:
             self.redis.srem(self.flocks_key, reqid)
@@ -125,6 +140,10 @@ class LaunchAllPool(object):
 
         for reqid in self.redis.smembers(self.flocks_key):
             self.stop(reqid)
+
+
+        if self.network_pool:
+            self.network_pool.shutdown()
 
 
 # ============================================================================
@@ -327,6 +346,7 @@ class PersistentPool(LaunchAllPool):
 
             if not self.stop_on_pause:
                 pause_res = self.shepherd.stop_flock(reqid,
+                                                     network_pool=self.network_pool,
                                                      keep_reqid=True,
                                                      grace_time=self.grace_time)
             else:
@@ -342,7 +362,9 @@ class PersistentPool(LaunchAllPool):
             return
 
         if not self.stop_on_pause:
-            res = self.shepherd.start_flock(reqid, labels=self.labels)
+            res = self.shepherd.start_flock(reqid,
+                                            labels=self.labels,
+                                            network_pool=self.network_pool)
 
         else:
             res = self.shepherd.resume_flock(reqid)
@@ -350,6 +372,7 @@ class PersistentPool(LaunchAllPool):
             if res.get('error') == 'not_paused' and res.get('state') == 'new':
                 res = self.shepherd.start_flock(reqid,
                                                 labels=self.labels,
+                                                network_pool=self.network_pool,
                                                 pausable=True)
 
         if 'error' not in res:

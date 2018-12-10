@@ -9,6 +9,7 @@ import traceback
 from redis import StrictRedis
 
 from shepherd.schema import AllFlockSchema, InvalidParam
+from shepherd.network_pool import NetworkPool
 
 import gevent
 
@@ -16,8 +17,6 @@ import gevent
 # ============================================================================
 class Shepherd(object):
     DEFAULT_FLOCKS = 'flocks.yaml'
-
-    NETWORK_NAME = 'shepherd.net-{0}'
 
     USER_PARAMS_KEY = 'up:{0}'
 
@@ -27,11 +26,12 @@ class Shepherd(object):
 
     DEFAULT_SHM_SIZE = '1g'
 
-    def __init__(self, redis, networks_templ):
+    def __init__(self, redis, network_templ=None):
         self.flocks = {}
         self.docker = docker.from_env()
         self.redis = redis
-        self.networks_templ = networks_templ
+
+        self.network_pool = NetworkPool(self.docker, network_templ=network_templ)
 
     def load_flocks(self, flocks_file):
         with open(flocks_file) as fh:
@@ -73,7 +73,8 @@ class Shepherd(object):
 
         return True
 
-    def start_flock(self, reqid, labels=None, environ=None, pausable=False):
+    def start_flock(self, reqid, labels=None, environ=None, pausable=False,
+                    network_pool=None):
         flock_req = FlockRequest(reqid)
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
@@ -96,7 +97,10 @@ class Shepherd(object):
         containers = {}
 
         try:
-            network = self.create_flock_network(flock_req)
+            network_pool = network_pool or self.network_pool
+            network = network_pool.create_network()
+
+            flock_req.set_network(network.name)
 
             links = flock.get('links', [])
             for link in links:
@@ -236,11 +240,12 @@ class Shepherd(object):
 
         return container, info
 
-    def create_flock_network(self, flock_req):
-        return self.docker.networks.create(self.NETWORK_NAME.format(flock_req.reqid))
+    def get_network(self, flock_req):
+        name = flock_req.get_network()
+        if not name:
+            return None
 
-    def get_flock_network(self, flock_req):
-        return self.docker.networks.get(self.NETWORK_NAME.format(flock_req.reqid))
+        return self.docker.networks.get(name)
 
     def resolve_image_list(self, specs, overrides):
         image_list = []
@@ -271,7 +276,7 @@ class Shepherd(object):
 
         return False
 
-    def stop_flock(self, reqid, keep_reqid=False, grace_time=None):
+    def stop_flock(self, reqid, keep_reqid=False, grace_time=None, network_pool=None):
         flock_req = FlockRequest(reqid)
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
@@ -282,7 +287,7 @@ class Shepherd(object):
             flock_req.stop(self.redis)
 
         try:
-            network = self.get_flock_network(flock_req)
+            network = self.get_network(flock_req)
             containers = network.containers
         except:
             network = None
@@ -318,7 +323,8 @@ class Shepherd(object):
                 pass
 
         try:
-            network.remove()
+            network_pool = network_pool or self.network_pool
+            network_pool.remove_network(network)
         except:
             pass
 
@@ -374,7 +380,7 @@ class Shepherd(object):
         try:
             containers = self.get_flock_containers(flock_req)
 
-            network = self.get_flock_network(flock_req)
+            network = self.get_network(flock_req)
 
             for container in containers:
                 container.start()
@@ -433,6 +439,12 @@ class FlockRequest(object):
     def set_state(self, state, redis):
         self.data['state'] = state
         self.save(redis)
+
+    def set_network(self, network_name):
+        self.data['net'] = network_name
+
+    def get_network(self):
+        return self.data.get('net')
 
     def load(self, redis):
         data = redis.get(self.key)
