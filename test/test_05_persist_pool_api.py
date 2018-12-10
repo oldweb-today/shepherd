@@ -93,8 +93,10 @@ class TestPersistPoolApi:
         for x in range(1, 10):
             time.sleep(2.1)
 
-            assert redis.llen('p:persist-pool:q') == 3
-            assert redis.scard('p:persist-pool:s') == 3
+            llen = redis.llen('p:persist-pool:q')
+            scard = redis.scard('p:persist-pool:s')
+            assert llen in (2, 3)
+            assert scard in (2, 3)
 
         def assert_done():
             assert len(persist_pool.reqid_starts) >= 6
@@ -127,12 +129,14 @@ class TestPersistPoolApi:
         while len(self.reqids) > 0:
             remove = self.reqids.pop()
             self.stop(remove)
+            time.sleep(0.2)
 
         def assert_done():
             assert redis.scard('p:persist-pool:f') == 0
 
             assert redis.llen('p:persist-pool:q') == 0
             assert redis.scard('p:persist-pool:s') == 0
+            assert redis.scard('p:persist-pool:a') == 0
 
             assert persist_pool.reqid_starts == persist_pool.reqid_stops
 

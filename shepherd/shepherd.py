@@ -319,14 +319,15 @@ class Shepherd(object):
             try:
                 container.remove(v=True, link=False, force=True)
 
-            except docker.errors.APIError:
+            except docker.errors.APIError as e:
                 pass
 
-        try:
-            network_pool = network_pool or self.network_pool
-            network_pool.remove_network(network)
-        except:
-            pass
+        if network:
+            try:
+                network_pool = network_pool or self.network_pool
+                network_pool.remove_network(network)
+            except:
+                pass
 
         return {'success': True}
 
@@ -379,8 +380,6 @@ class Shepherd(object):
 
         try:
             containers = self.get_flock_containers(flock_req)
-
-            network = self.get_network(flock_req)
 
             for container in containers:
                 container.start()

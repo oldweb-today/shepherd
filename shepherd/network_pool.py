@@ -60,6 +60,7 @@ class CachedNetworkPool(NetworkPool):
         try:
             name = self.redis.spop(self.networks_key)
             network = self.docker.networks.get(name)
+            assert len(network.containers) == 0
             return network
         except:
             return super(CachedNetworkPool, self).create_network()
