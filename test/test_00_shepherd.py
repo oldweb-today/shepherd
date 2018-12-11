@@ -126,54 +126,38 @@ class TestShepherd(object):
 
         assert redis.keys(Shepherd.USER_PARAMS_KEY.format('*')) == []
 
-    def test_start_with_external_link(self, docker_client, shepherd):
-        res = shepherd.request_flock('test_external')
+    def test_volumes(self, shepherd, docker_client):
+        res = shepherd.request_flock('test_vol')
 
         reqid = res['reqid']
 
         res = shepherd.start_flock(reqid)
 
-        assert res['error'] == 'start_error'
+        assert res['containers']['box-1']
+        assert res['containers']['box-2']
+        box_1 = docker_client.containers.get(res['containers']['box-1']['id'])
+        box_2 = docker_client.containers.get(res['containers']['box-2']['id'])
 
-        ext = None
+        vol_1 = 'vol-tmp-' + reqid
+        vol_2 = 'vol-bar-' + reqid
 
-        try:
-            ext = docker_client.containers.run('test-shepherd/busybox',
-                                               name='test_external_container_1',
-                                               detach=True,
-                                               auto_remove=True)
+        mounts_1 = {m['Name']: m for m in box_1.attrs['Mounts']}
+        mounts_2 = {m['Name']: m for m in box_2.attrs['Mounts']}
 
-            res = shepherd.start_flock(reqid)
+        assert mounts_1 == mounts_2
 
-            assert res['error'] == 'invalid_reqid'
+        assert docker_client.volumes.get(vol_1)
+        assert docker_client.volumes.get(vol_2)
 
-            # new reqid needed
-            res = shepherd.request_flock('test_external')
-            reqid = res['reqid']
+        res = shepherd.stop_flock(reqid)
 
-            res = shepherd.start_flock(reqid)
-
-            assert res['containers']
-
-            ext.reload()
-
-            networks = ext.attrs['NetworkSettings']['Networks']
-            assert res['network'] in networks
-
-            assert 'external' in networks[res['network']]['Aliases']
-
-        finally:
-            try:
-                shepherd.stop_flock(reqid)
-            except:
-                pass
-
-            if ext:
-                ext.kill()
-
+        assert res == {'success': True}
 
         with pytest.raises(docker.errors.NotFound):
-            assert docker_client.networks.get(res['network'])
+            assert docker_client.volumes.get(vol_1)
+
+        with pytest.raises(docker.errors.NotFound):
+            assert docker_client.volumes.get(vol_2)
 
     def test_no_external_net_error(self,docker_client, shepherd):
         res = shepherd.request_flock('test_external_net')

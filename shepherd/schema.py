@@ -14,7 +14,7 @@ class ContainerSchema(Schema):
 class FlockSpecSchema(Schema):
     name = fields.String()
     containers = fields.Nested(ContainerSchema, many=True)
-    links = fields.List(fields.String())
+    volumes = string_dict()
     auto_remove = fields.Boolean()
 
 class AllFlockSchema(Schema):

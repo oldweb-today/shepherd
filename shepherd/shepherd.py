@@ -26,12 +26,16 @@ class Shepherd(object):
 
     DEFAULT_SHM_SIZE = '1g'
 
-    def __init__(self, redis, network_templ=None):
+    VOLUME_TEMPL = 'vol-{name}-{reqid}'
+
+    def __init__(self, redis, network_templ=None, volume_templ=None):
         self.flocks = {}
         self.docker = docker.from_env()
         self.redis = redis
 
         self.network_pool = NetworkPool(self.docker, network_templ=network_templ)
+
+        self.volume_templ = volume_templ or self.VOLUME_TEMPL
 
     def load_flocks(self, flocks_file):
         with open(flocks_file) as fh:
@@ -88,7 +92,7 @@ class Shepherd(object):
         try:
             flock_name = flock_req.data['flock']
             image_list = flock_req.data['image_list']
-            flock = self.flocks[flock_name]
+            flock_spec = self.flocks[flock_name]
         except:
             return {'error': 'invalid_flock',
                     'flock': flock_name}
@@ -96,22 +100,25 @@ class Shepherd(object):
         network = None
         containers = {}
 
+        labels = labels or {}
+        labels[self.SHEP_REQID_LABEL] = flock_req.reqid
+
         try:
             network_pool = network_pool or self.network_pool
             network = network_pool.create_network()
 
             flock_req.set_network(network.name)
 
-            links = flock.get('links', [])
-            for link in links:
-                self.link_external_container(network, link)
-
             # auto remove if not pausable and flock auto_remove is true
-            auto_remove = not pausable and flock.get('auto_remove', True)
+            auto_remove = not pausable and flock_spec.get('auto_remove', True)
 
-            for image, spec in zip(image_list, flock['containers']):
+            volume_binds, volumes = self.create_volumes(flock_req, flock_spec, labels)
+
+            for image, spec in zip(image_list, flock_spec['containers']):
                 container, info = self.run_container(image, spec, flock_req, network,
                                                      labels=labels,
+                                                     volume_binds=volume_binds,
+                                                     volumes=volumes,
                                                      auto_remove=auto_remove)
                 containers[spec['name']] = info
 
@@ -133,15 +140,6 @@ class Shepherd(object):
 
         flock_req.cache_response(response, self.redis)
         return response
-
-    def link_external_container(self, network, link):
-        if ':' in link:
-            name, alias = link.split(':', 1)
-        else:
-            name = link
-            alias = link
-
-        res = network.connect(name, aliases=[alias])
 
     def short_id(self, container):
         return container.id[:12]
@@ -167,6 +165,8 @@ class Shepherd(object):
         return ports
 
     def run_container(self, image, spec, flock_req, network, labels=None,
+                      volumes=None,
+                      volume_binds=None,
                       auto_remove=False):
 
         api = self.docker.api
@@ -189,15 +189,13 @@ class Shepherd(object):
                                              cap_add=['ALL'],
                                              shm_size=spec.get('shm_size', self.DEFAULT_SHM_SIZE),
                                              security_opt=['apparmor=unconfined'],
-                                             port_bindings=port_bindings)
+                                             port_bindings=port_bindings,
+                                             binds=volume_binds)
 
         name = spec['name'] + '-' + flock_req.reqid
 
         environ = spec.get('environment') or {}
         environ.update(flock_req.data['environ'])
-
-        labels = labels or {}
-        labels[self.SHEP_REQID_LABEL] = flock_req.reqid
 
         cdata = api.create_container(
             image,
@@ -208,7 +206,8 @@ class Shepherd(object):
             detach=True,
             hostname=spec['name'],
             environment=environ,
-            labels=labels
+            labels=labels,
+            volumes=volumes
         )
 
         container = self.docker.containers.get(cdata['Id'])
@@ -295,11 +294,6 @@ class Shepherd(object):
 
         for container in containers:
             if container.labels.get(self.SHEP_REQID_LABEL) != reqid:
-                try:
-                    network.disconnect(container)
-                except:
-                    pass
-
                 continue
 
             try:
@@ -322,6 +316,8 @@ class Shepherd(object):
             except docker.errors.APIError as e:
                 pass
 
+        self.remove_flock_volumes(flock_req)
+
         if network:
             try:
                 network_pool = network_pool or self.network_pool
@@ -340,8 +336,33 @@ class Shepherd(object):
 
         gevent.spawn(do_stop)
 
+    def create_volumes(self, flock_req, flock_spec, labels):
+        volume_spec = flock_spec.get('volumes')
+        if not volume_spec:
+            return None, None
+
+        volumes_list = []
+        volume_binds = []
+
+        for n, v in volume_spec.items():
+            vol_name = self.volume_templ.format(reqid=flock_req.reqid, name=n)
+
+            volume = self.docker.volumes.create(vol_name, labels=labels)
+
+            volumes_list.append(v)
+
+            volume_binds.append(vol_name + ':' + v)
+
+        return volume_binds, volumes_list
+
     def get_flock_containers(self, flock_req):
         return self.docker.containers.list(all=True, filters={'label': self.SHEP_REQID_LABEL + '=' + flock_req.reqid})
+
+    def remove_flock_volumes(self, flock_req):
+        volumes = self.docker.volumes.list(filters={'label': self.SHEP_REQID_LABEL + '=' + flock_req.reqid})
+
+        for volume in volumes:
+            volume.remove(force=True)
 
     def pause_flock(self, reqid, grace_time=1):
         flock_req = FlockRequest(reqid)
