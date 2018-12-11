@@ -62,6 +62,7 @@ class Shepherd(object):
             return ip.msg
 
         flock_req.data['image_list'] = image_list
+        flock_req.data['num_volumes'] = len(flock.get('volumes', []))
         ttl = ttl or self.DEFAULT_REQ_TTL
         flock_req.save(self.redis, expire=ttl)
 
@@ -316,14 +317,17 @@ class Shepherd(object):
             except docker.errors.APIError as e:
                 pass
 
-        self.remove_flock_volumes(flock_req)
-
         if network:
             try:
                 network_pool = network_pool or self.network_pool
                 network_pool.remove_network(network)
             except:
                 pass
+
+        try:
+            self.remove_flock_volumes(flock_req)
+        except:
+            pass
 
         return {'success': True}
 
@@ -359,10 +363,19 @@ class Shepherd(object):
         return self.docker.containers.list(all=True, filters={'label': self.SHEP_REQID_LABEL + '=' + flock_req.reqid})
 
     def remove_flock_volumes(self, flock_req):
-        volumes = self.docker.volumes.list(filters={'label': self.SHEP_REQID_LABEL + '=' + flock_req.reqid})
+        num_volumes = flock_req.data.get('num_volumes', 0)
 
-        for volume in volumes:
-            volume.remove(force=True)
+        for x in range(0, 3):
+            res = self.docker.volumes.prune(filters={'label': self.SHEP_REQID_LABEL + '=' + flock_req.reqid})
+            num_volumes -= len(res.get('VolumesDeleted', []))
+
+            if num_volumes == 0:
+                return True
+
+            # if not all volumes deleted yet, wait and try again
+            time.sleep(1.0)
+
+        return num_volumes == 0
 
     def pause_flock(self, reqid, grace_time=1):
         flock_req = FlockRequest(reqid)
