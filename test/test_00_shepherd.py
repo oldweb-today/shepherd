@@ -252,3 +252,40 @@ class TestShepherd(object):
         assert not shepherd.is_valid_flock(reqid, 'stopped')
         assert not shepherd.is_valid_flock(reqid)
 
+    def test_start_deferred_container(self, shepherd, docker_client):
+        res = shepherd.request_flock('test_deferred')
+
+        reqid = res['reqid']
+
+        res = shepherd.start_flock(reqid)
+
+        assert res['containers']['box-1']['id']
+        assert res['containers']['box-p']['deferred']
+        assert 'id' not in res['containers']['box-p']
+
+        box_1 = docker_client.containers.get(res['containers']['box-1']['id'])
+        assert box_1.status == 'running'
+
+        # not a deferred container
+        res = shepherd.start_deferred_container(reqid, 'box-1')
+        assert res == {'error': 'invalid_deferred', 'flock': 'test_deferred'}
+
+        res = shepherd.start_deferred_container(reqid, 'box-p')
+
+        assert res['id']
+        assert res['ip']
+        assert res['ports']['port_a']
+
+        box_p = docker_client.containers.get(res['id'])
+        assert box_p.status == 'running'
+
+        # start again, already started
+        res2 = shepherd.start_deferred_container(reqid, 'box-p')
+
+        assert res == res2
+
+        res = shepherd.stop_flock(reqid)
+
+        assert res['success'] == True
+
+

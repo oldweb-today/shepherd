@@ -47,6 +47,37 @@ flocks:
           image: test-shepherd/alpine
           external_network: test-shepherd-external-net
 
+    - name: test_deferred
+      containers:
+        - name: box-1
+          image: test-shepherd/busybox
+
+          ports:
+            port_a: 8231
+
+        - name: box-p
+          image: test-shepherd/alpine
+          deferred: true
+
+          ports:
+            port_a: 8234
+
+
+    - name: test_def_only
+      containers:
+        - name: box-1
+          image: test-shepherd/busybox
+          deferred: true
+
+          ports:
+            port_a: 8231
+
+        - name: box-p
+          image: test-shepherd/alpine
+          deferred: true
+
+          ports:
+            port_a: 8234
 
  
  

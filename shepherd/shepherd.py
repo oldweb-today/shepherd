@@ -112,15 +112,22 @@ class Shepherd(object):
 
             # auto remove if not pausable and flock auto_remove is true
             auto_remove = not pausable and flock_spec.get('auto_remove', True)
+            flock_req.data['auto_remove'] = auto_remove
 
-            volume_binds, volumes = self.create_volumes(flock_req, flock_spec, labels)
+            volume_binds, volumes = self.get_volumes(flock_req, flock_spec, labels, create=True)
 
             for image, spec in zip(image_list, flock_spec['containers']):
-                container, info = self.run_container(image, spec, flock_req, network,
-                                                     labels=labels,
-                                                     volume_binds=volume_binds,
-                                                     volumes=volumes,
-                                                     auto_remove=auto_remove)
+                if spec.get('deferred'):
+                    info = {'deferred': True, 'image': image}
+
+                else:
+                    res = self.run_container(image, spec, flock_req, network,
+                                             labels=labels,
+                                             volume_binds=volume_binds,
+                                             volumes=volumes,
+                                             auto_remove=auto_remove)
+                    container, info = res
+
                 containers[spec['name']] = info
 
         except:
@@ -164,6 +171,78 @@ class Shepherd(object):
                 ports[port_name] = -1
 
         return ports
+
+    def start_deferred_container(self, reqid, image_name, labels=None):
+        flock_req = FlockRequest(reqid)
+        if not flock_req.load(self.redis):
+            return {'error': 'invalid_reqid'}
+
+        state = flock_req.get_state()
+        if state != 'running':
+            return {'error': 'flock_not_running', 'state': state}
+
+        response = flock_req.get_cached_response()
+
+        try:
+            flock_name = flock_req.data['flock']
+            flock_spec = self.flocks[flock_name]
+
+            info = response['containers'][image_name]
+
+            # ensure actually a deferred container
+            assert(info['deferred'])
+
+            # already started, just return cached response
+            if 'id' in info:
+                return info
+
+        except:
+            traceback.print_exc()
+            return {'error': 'invalid_deferred',
+                    'flock': flock_name}
+
+        try:
+            labels = labels or {}
+            labels[self.SHEP_REQID_LABEL] = flock_req.reqid
+
+            spec = self.find_spec_for_flock_req(flock_req, image_name)
+
+            try:
+                network = self.get_network(flock_req)
+            except:
+                network = None
+
+            auto_remove = flock_req.data['auto_remove']
+
+            volume_binds, volumes = self.get_volumes(flock_req, flock_spec, labels, create=False)
+
+            res = self.run_container(info['image'], spec, flock_req, network,
+                                     labels=labels,
+                                     volume_binds=volume_binds,
+                                     volumes=volumes,
+                                     auto_remove=auto_remove)
+
+            info.update(res[1])
+
+        except:
+            traceback.print_exc()
+            return {'error': 'error_starting_deferred',
+                    'flock': flock_name}
+
+        flock_req.cache_response(response, self.redis)
+        return info
+
+    def find_spec_for_flock_req(self, flock_req, image_name):
+        try:
+            flock_name = flock_req.data['flock']
+            flock_spec = self.flocks[flock_name]
+            for spec in flock_spec['containers']:
+                if spec['name'] == image_name:
+                    return spec
+        except:
+            pass
+
+        return None
 
     def run_container(self, image, spec, flock_req, network, labels=None,
                       volumes=None,
@@ -340,7 +419,7 @@ class Shepherd(object):
 
         gevent.spawn(do_stop)
 
-    def create_volumes(self, flock_req, flock_spec, labels):
+    def get_volumes(self, flock_req, flock_spec, labels=None, create=False):
         volume_spec = flock_spec.get('volumes')
         if not volume_spec:
             return None, None
@@ -351,7 +430,8 @@ class Shepherd(object):
         for n, v in volume_spec.items():
             vol_name = self.volume_templ.format(reqid=flock_req.reqid, name=n)
 
-            volume = self.docker.volumes.create(vol_name, labels=labels)
+            if create:
+                volume = self.docker.volumes.create(vol_name, labels=labels)
 
             volumes_list.append(v)
 

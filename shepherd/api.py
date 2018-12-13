@@ -1,5 +1,5 @@
 from shepherd.schema import FlockIdSchema, FlockRequestOptsSchema, GenericResponseSchema
-from shepherd.schema import LaunchResponseSchema
+from shepherd.schema import LaunchResponseSchema, LaunchContainerSchema
 
 from flask import Response
 
@@ -19,6 +19,11 @@ def init_routes(app):
                   name: flock
                   schema: FlockIdSchema
                   description: Flock id from the flocks.yaml file
+
+                - in: path
+                  name: pool
+                  schema: {type: string}
+                  description: the scheduling pool to use for this flock
 
             requestBody:
                 description: optional user params, environment, and image overrides
@@ -54,6 +59,11 @@ def init_routes(app):
                   schema: {type: string}
                   description: a unique request id that was created from flock request
 
+                - in: path
+                  name: pool
+                  schema: {type: string}
+                  description: the scheduling pool to use for this flock
+
             responses:
                 200:
                     description: A flock launch response
@@ -80,6 +90,11 @@ def init_routes(app):
                   schema: {type: string}
                   description: a unique request id that was created from flock request
 
+                - in: path
+                  name: pool
+                  schema: {type: string}
+                  description: the scheduling pool to use for this flock
+
             responses:
                 200:
                     description: Returns 'success' if stopped
@@ -94,6 +109,43 @@ def init_routes(app):
         app.get_pool(pool).stop(reqid)
         return {'success': True}
 
+
+    @app.route(['/api/start_deferred/<reqid>/<name>', '/api/<pool>/start_deferred/<reqid>/<name>'], methods=['POST'],
+               resp_schema=LaunchContainerSchema)
+    def start_deferred_container(reqid, name, pool=''):
+        """Start a 'deferred' container that was not started automatically
+           in an existing running flock
+        ---
+        post:
+            summary: Request a new flock by flock id
+            parameters:
+                - in: path
+                  name: reqid
+                  schema: {type: string}
+                  description: a unique request id that was created from flock request
+
+                - in: path
+                  name: pool
+                  schema: {type: string}
+                  description: the scheduling pool to use for this flock
+
+                - in: path
+                  name: name
+                  schema: {type: string}
+                  description: the name of deferred container to start
+
+            responses:
+                200:
+                    description: A container launch response
+                    schema: GenericResponseSchema
+
+                400:
+                    schema: GenericResponseSchema
+
+                404:
+                    schema: GenericResponseSchema
+        """
+        return app.get_pool(pool).start_deferred_container(reqid, name)
 
     @app.route('/api', methods=['GET'])
     def print_api():

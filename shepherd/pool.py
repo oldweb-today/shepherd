@@ -58,6 +58,11 @@ class LaunchAllPool(object):
     def _mark_stopped(self, reqid):
         self.redis.delete(self.req_key + reqid)
 
+    def start_deferred_container(self, reqid, image_name):
+        return self.shepherd.start_deferred_container(reqid=reqid,
+                                                      image_name=image_name,
+                                                      labels=self.labels)
+
     def start(self, reqid, **kwargs):
         res = self.shepherd.start_flock(reqid,
                                         labels=self.labels,

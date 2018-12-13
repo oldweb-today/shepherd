@@ -10,6 +10,7 @@ class ContainerSchema(Schema):
     environment = string_dict()
     external_network = fields.String()
     set_user_params = fields.Boolean(default=False)
+    deferred = fields.Boolean(default=False)
 
 class FlockSpecSchema(Schema):
     name = fields.String()
@@ -42,8 +43,10 @@ class GenericResponseSchema(Schema):
 
 class LaunchContainerSchema(Schema):
     ip = fields.String()
-    ports = fields.Dict(keys=fields.String(), values=fields.Int(), default={})
+    ports = fields.Dict(keys=fields.String(), values=fields.Int())
     id = fields.String()
+    deferred = fields.Boolean()
+    image = fields.String()
 
 class LaunchResponseSchema(Schema):
     reqid = fields.String()
