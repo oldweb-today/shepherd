@@ -16,6 +16,31 @@ class TestShepherd(object):
     USER_PARAMS = {'data': 'val',
                    'another': '1'}
 
+    def test_flock_setup(self, shepherd):
+        assert len(shepherd.flocks) == 6
+
+    def test_flock_dir_load(self, redis):
+        testshep = Shepherd(redis)
+
+        test_dir = os.path.join(os.path.dirname(__file__), 'data', 'flocks')
+
+        os.environ['EXTERNAL_NET'] = 'NET'
+        os.environ['BAR_PATH'] = 'B1'
+
+        testshep.load_flocks(test_dir)
+
+        assert len(testshep.flocks) == 3
+
+        # not interpolated
+        assert testshep.flocks['test_1']['containers'][2]['environment']['TEST'] == '${FOO}'
+
+        # vars interpolated
+        assert testshep.flocks['test_2']['containers'][1]['external_network'] == 'NET'
+        assert testshep.flocks['test_3']['volumes']['bar'] == 'B1'
+
+        os.environ.pop('EXTERNAL_NET')
+        os.environ.pop('BAR_PATH')
+
     def test_reqid(self, shepherd, redis):
         req_opts = dict(overrides={'base-alpine': 'test-shepherd/alpine-derived'},
                         environ={'FOO': 'BAR2'},

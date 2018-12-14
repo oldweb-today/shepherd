@@ -1,84 +1,91 @@
-flocks:
-    - name: test_1
-      containers:
-        - name: base-alpine
-          image: test-shepherd/alpine
-          set_user_params: true
+---
+name: test_1
+containers:
+  - name: base-alpine
+    image: test-shepherd/alpine
+    set_user_params: true
 
-        - name: busybox
-          image: test-shepherd/busybox
-          ports:
-            port_a: 8200
-            port_b: 9356
+  - name: busybox
+    image: test-shepherd/busybox
+    ports:
+      port_a: 8200
+      port_b: 9356
 
-        - name: another-box
-          image: test-shepherd/busybox
+  - name: another-box
+    image: test-shepherd/busybox
 
-          environment:
-            TEST: FOO
-            VAR: BAR
-
-    - name: test_b
-      containers:
-        - name: box
-          image: test-shepherd/busybox
-
-        - name: box-2
-          image: test-shepherd/busybox
-
-    - name: test_vol
-      volumes:
-         tmp: /tmp/foo
-         bar: /bar
-
-      containers:
-        - name: box-1
-          image: test-shepherd/busybox
-
-        - name: box-2
-          image: test-shepherd/alpine
-
-    - name: test_external_net
-      containers:
-        - name: container-1
-          image: test-shepherd/alpine
-
-        - name: container-2
-          image: test-shepherd/alpine
-          external_network: test-shepherd-external-net
-
-    - name: test_deferred
-      containers:
-        - name: box-1
-          image: test-shepherd/busybox
-
-          ports:
-            port_a: 8231
-
-        - name: box-p
-          image: test-shepherd/alpine
-          deferred: true
-
-          ports:
-            port_a: 8234
+    environment:
+      TEST: FOO
+      VAR: BAR
 
 
-    - name: test_def_only
-      containers:
-        - name: box-1
-          image: test-shepherd/busybox
-          deferred: true
+---
+name: test_b
+containers:
+  - name: box
+    image: test-shepherd/busybox
 
-          ports:
-            port_a: 8231
+  - name: box-2
+    image: test-shepherd/busybox
 
-        - name: box-p
-          image: test-shepherd/alpine
-          deferred: true
 
-          ports:
-            port_a: 8234
+---
+name: test_vol
+volumes:
+   tmp: /tmp/foo
+   bar: /bar
 
- 
- 
+containers:
+  - name: box-1
+    image: test-shepherd/busybox
+
+  - name: box-2
+    image: test-shepherd/alpine
+
+
+---
+name: test_external_net
+containers:
+  - name: container-1
+    image: test-shepherd/alpine
+
+  - name: container-2
+    image: test-shepherd/alpine
+    external_network: test-shepherd-external-net
+
+
+---
+name: test_deferred
+containers:
+  - name: box-1
+    image: test-shepherd/busybox
+
+    ports:
+      port_a: 8231
+
+  - name: box-p
+    image: test-shepherd/alpine
+    deferred: true
+
+    ports:
+      port_a: 8234
+
+
+---
+name: test_def_only
+containers:
+  - name: box-1
+    image: test-shepherd/busybox
+    deferred: true
+
+    ports:
+      port_a: 8231
+
+  - name: box-p
+    image: test-shepherd/alpine
+    deferred: true
+
+    ports:
+      port_a: 8234
+
 

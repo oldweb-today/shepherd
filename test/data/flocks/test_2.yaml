@@ -1,0 +1,25 @@
+---
+name: test_2
+containers:
+  - name: box
+    image: test-shepherd/busybox
+
+  - name: box-2
+    image: test-shepherd/busybox
+    external_network: ${EXTERNAL_NET}
+
+
+---
+name: test_3
+volumes:
+   tmp: /tmp/foo
+   bar: ${BAR_PATH}
+
+containers:
+  - name: box-1
+    image: test-shepherd/busybox
+
+  - name: box-2
+    image: test-shepherd/alpine
+
+

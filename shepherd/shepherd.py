@@ -8,7 +8,7 @@ import traceback
 
 from redis import StrictRedis
 
-from shepherd.schema import AllFlockSchema, InvalidParam
+from shepherd.schema import FlockSpecSchema, InvalidParam
 from shepherd.network_pool import NetworkPool
 
 import gevent
@@ -37,12 +37,29 @@ class Shepherd(object):
 
         self.volume_templ = volume_templ or self.VOLUME_TEMPL
 
-    def load_flocks(self, flocks_file):
-        with open(flocks_file) as fh:
-            data = yaml.load(fh.read())
-            flocks = AllFlockSchema().load(data)
-            for flock in flocks['flocks']:
+    def load_flocks(self, flocks_file_or_dir):
+        num_loaded = 0
+        if os.path.isfile(flocks_file_or_dir):
+            num_loaded += self._load_flocks_file(flocks_file_or_dir)
+        elif os.path.isdir(flocks_file_or_dir):
+            for path in os.listdir(flocks_file_or_dir):
+                if path.endswith(('.yaml', '.yml')):
+                    num_loaded += self._load_flocks_file(os.path.join(flocks_file_or_dir, path))
+
+        return num_loaded
+
+    def _load_flocks_file(self, filename):
+        num_loaded = 0
+        with open(filename, 'rt') as fh:
+            contents = fh.read()
+            contents = os.path.expandvars(contents)
+            all_flocks = yaml.load_all(contents)
+            for data in all_flocks:
+                flock = FlockSpecSchema().load(data)
                 self.flocks[flock['name']] = flock
+                num_loaded += 1
+
+        return num_loaded
 
     def request_flock(self, flock_name, req_opts=None, ttl=None):
         req_opts = req_opts or {}
