@@ -24,18 +24,30 @@ class Shepherd(object):
 
     DEFAULT_REQ_TTL = 120
 
+    DANGLING_CHECK_TIME = 30
+
     DEFAULT_SHM_SIZE = '1g'
 
     VOLUME_TEMPL = 'vol-{name}-{reqid}'
 
-    def __init__(self, redis, network_templ=None, volume_templ=None):
+    def __init__(self, redis, network_templ=None, volume_templ=None,
+                 reqid_label=None, dangling_check_time=None, network_label=None):
         self.flocks = {}
         self.docker = docker.from_env()
         self.redis = redis
 
-        self.network_pool = NetworkPool(self.docker, network_templ=network_templ)
+        self.network_pool = NetworkPool(self.docker,
+                                        network_templ=network_templ,
+                                        network_label=network_label)
 
         self.volume_templ = volume_templ or self.VOLUME_TEMPL
+
+        self.reqid_label = reqid_label or self.SHEP_REQID_LABEL
+
+        self.dangling_check_time = dangling_check_time or self.DANGLING_CHECK_TIME
+
+        if self.dangling_check_time > 0:
+            gevent.spawn(self.dangling_check_loop)
 
     def load_flocks(self, flocks_file_or_dir):
         num_loaded = 0
@@ -119,7 +131,7 @@ class Shepherd(object):
         containers = {}
 
         labels = labels or {}
-        labels[self.SHEP_REQID_LABEL] = flock_req.reqid
+        labels[self.reqid_label] = flock_req.reqid
 
         try:
             network_pool = network_pool or self.network_pool
@@ -220,7 +232,7 @@ class Shepherd(object):
 
         try:
             labels = labels or {}
-            labels[self.SHEP_REQID_LABEL] = flock_req.reqid
+            labels[self.reqid_label] = flock_req.reqid
 
             spec = self.find_spec_for_flock_req(flock_req, image_name)
 
@@ -390,7 +402,7 @@ class Shepherd(object):
         containers = self.get_flock_containers(flock_req)
 
         for container in containers:
-            if container.labels.get(self.SHEP_REQID_LABEL) != reqid:
+            if container.labels.get(self.reqid_label) != reqid:
                 continue
 
             try:
@@ -457,13 +469,13 @@ class Shepherd(object):
         return volume_binds, volumes_list
 
     def get_flock_containers(self, flock_req):
-        return self.docker.containers.list(all=True, filters={'label': self.SHEP_REQID_LABEL + '=' + flock_req.reqid})
+        return self.docker.containers.list(all=True, filters={'label': self.reqid_label + '=' + flock_req.reqid})
 
     def remove_flock_volumes(self, flock_req):
         num_volumes = flock_req.data.get('num_volumes', 0)
 
         for x in range(0, 3):
-            res = self.docker.volumes.prune(filters={'label': self.SHEP_REQID_LABEL + '=' + flock_req.reqid})
+            res = self.docker.volumes.prune(filters={'label': self.reqid_label + '=' + flock_req.reqid})
             num_volumes -= len(res.get('VolumesDeleted', []))
 
             if num_volumes == 0:
@@ -525,6 +537,64 @@ class Shepherd(object):
                    }
 
         return {'success': True}
+
+    def dangling_check_loop(self):
+        print('Dangling Container Check Loop Started')
+
+        filters = {'label': self.reqid_label}
+
+        while True:
+            try:
+                all_containers = self.docker.containers.list(all=False, filters=filters)
+
+                reqids = set()
+                network_names = set()
+
+                for container in all_containers:
+                    reqid = container.labels.get(self.reqid_label)
+
+                    if self.is_valid_flock(reqid):
+                        continue
+
+                    reqids.add(reqid)
+
+                    try:
+                        network_names.update(container.attrs['NetworkSettings']['Networks'].keys())
+                    except:
+                        pass
+
+
+                    try:
+                        short_id = self.short_id(container)
+                        container.remove(force=True)
+                        print('Removed dangling container: ' + short_id)
+                    except:
+                        pass
+
+                # remove volumes
+                for reqid in reqids:
+                    try:
+                        res = self.docker.volumes.prune(filters={'label': self.reqid_label + '=' + reqid})
+                        pruned_volumes = len(res.get('VolumesDeleted', []))
+                        if pruned_volumes:
+                            print('Removed Dangling Volumes: {0}'.format(pruned_volumes))
+                    except:
+                        pass
+
+                # remove any networks these containers were connected to
+                for network_name in network_names:
+                    try:
+                        network = self.docker.networks.get(network_name)
+                        if len(network.containers) == 0:
+                            self.network_pool.remove_network(network)
+                            print('Removed dangling network: ' + network_name)
+                    except:
+                        pass
+
+            except:
+                traceback.print_exc()
+
+            time.sleep(self.dangling_check_time)
 
     @classmethod
     def full_tag(cls, tag):

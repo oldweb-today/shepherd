@@ -118,7 +118,7 @@ class LaunchAllPool(object):
                 if not self.running:
                     break
 
-                reqid = event['Actor']['Attributes'][self.shepherd.SHEP_REQID_LABEL]
+                reqid = event['Actor']['Attributes'][self.shepherd.reqid_label]
                 if event['status'] == 'die':
                     self.handle_die_event(reqid, event)
 
@@ -129,8 +129,7 @@ class LaunchAllPool(object):
                 print(e)
 
     def handle_die_event(self, reqid, event):
-        key = self.req_key + reqid
-        self.redis.delete(key)
+        self._mark_stopped(reqid)
 
     def handle_start_event(self, reqid, event):
         pass

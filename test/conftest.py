@@ -15,6 +15,10 @@ TEST_DIR = os.path.join(os.path.dirname(__file__), 'data')
 
 TEST_FLOCKS = os.path.join(TEST_DIR, 'test_flocks.yaml')
 
+TEST_REQID_LABEL = 'owt.test.shepherd'
+
+TEST_NETWORK_LABEL = 'owt.test.network'
+
 
 # ============================================================================
 class DebugMixin(object):
@@ -31,7 +35,7 @@ class DebugMixin(object):
         self.stop_events.append(event)
 
         try:
-            reqid = event['Actor']['Attributes']['owt.shepherd.reqid']
+            reqid = event['Actor']['Attributes'][TEST_REQID_LABEL]
             self.reqid_stops[reqid] = self.reqid_stops.get(reqid, 0) + 1
         except:
             pass
@@ -41,7 +45,7 @@ class DebugMixin(object):
         self.start_events.append(event)
 
         try:
-            reqid = event['Actor']['Attributes']['owt.shepherd.reqid']
+            reqid = event['Actor']['Attributes'][TEST_REQID_LABEL]
             self.reqid_starts[reqid] = self.reqid_starts.get(reqid, 0) + 1
         except:
             pass
@@ -63,7 +67,12 @@ def redis():
 
 @pytest.fixture(scope='module')
 def shepherd(redis):
-    shep = Shepherd(redis, NETWORKS_NAME)
+    shep = Shepherd(redis,
+                    reqid_label=TEST_REQID_LABEL,
+                    network_templ=NETWORKS_NAME,
+                    network_label=TEST_NETWORK_LABEL,
+                    dangling_check_time=2.0)
+
     shep.load_flocks(TEST_FLOCKS)
     return shep
 
