@@ -24,14 +24,14 @@ class Shepherd(object):
 
     DEFAULT_REQ_TTL = 120
 
-    DANGLING_CHECK_TIME = 30
+    UNTRACKED_CHECK_TIME = 30
 
     DEFAULT_SHM_SIZE = '1g'
 
     VOLUME_TEMPL = 'vol-{name}-{reqid}'
 
     def __init__(self, redis, network_templ=None, volume_templ=None,
-                 reqid_label=None, dangling_check_time=None, network_label=None):
+                 reqid_label=None, untracked_check_time=None, network_label=None):
         self.flocks = {}
         self.docker = docker.from_env()
         self.redis = redis
@@ -44,10 +44,10 @@ class Shepherd(object):
 
         self.reqid_label = reqid_label or self.SHEP_REQID_LABEL
 
-        self.dangling_check_time = dangling_check_time or self.DANGLING_CHECK_TIME
+        self.untracked_check_time = untracked_check_time or self.UNTRACKED_CHECK_TIME
 
-        if self.dangling_check_time > 0:
-            gevent.spawn(self.dangling_check_loop)
+        if self.untracked_check_time > 0:
+            gevent.spawn(self.untracked_check_loop)
 
     def load_flocks(self, flocks_file_or_dir):
         num_loaded = 0
@@ -538,8 +538,8 @@ class Shepherd(object):
 
         return {'success': True}
 
-    def dangling_check_loop(self):
-        print('Dangling Container Check Loop Started')
+    def untracked_check_loop(self):
+        print('Untracked Container Check Loop Started')
 
         filters = {'label': self.reqid_label}
 
@@ -567,7 +567,7 @@ class Shepherd(object):
                     try:
                         short_id = self.short_id(container)
                         container.remove(force=True)
-                        print('Removed dangling container: ' + short_id)
+                        print('Removed untracked container: ' + short_id)
                     except:
                         pass
 
@@ -577,7 +577,7 @@ class Shepherd(object):
                         res = self.docker.volumes.prune(filters={'label': self.reqid_label + '=' + reqid})
                         pruned_volumes = len(res.get('VolumesDeleted', []))
                         if pruned_volumes:
-                            print('Removed Dangling Volumes: {0}'.format(pruned_volumes))
+                            print('Removed Untracked Volumes: {0}'.format(pruned_volumes))
                     except:
                         pass
 
@@ -587,14 +587,14 @@ class Shepherd(object):
                         network = self.docker.networks.get(network_name)
                         if len(network.containers) == 0:
                             self.network_pool.remove_network(network)
-                            print('Removed dangling network: ' + network_name)
+                            print('Removed untracked network: ' + network_name)
                     except:
                         pass
 
             except:
                 traceback.print_exc()
 
-            time.sleep(self.dangling_check_time)
+            time.sleep(self.untracked_check_time)
 
     @classmethod
     def full_tag(cls, tag):

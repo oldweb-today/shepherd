@@ -50,7 +50,7 @@ class TestCleanup(object):
 
         self.sleep_try(0.3, 10.0, assert_removed)
 
-    def test_check_dangling_cleanup(self, docker_client, redis, shepherd):
+    def test_check_untracked_cleanup(self, docker_client, redis, shepherd):
         num_containers = self._count_containers(docker_client, shepherd)
         num_volumes = self._count_volumes(docker_client, shepherd)
         num_networks = self._count_volumes(docker_client, shepherd)
