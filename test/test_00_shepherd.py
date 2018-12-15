@@ -77,7 +77,7 @@ class TestShepherd(object):
         flock2 = shepherd.start_flock(self.reqid)
         assert flock2 == TestShepherd.flock
 
-    def test_verify_launch(self, docker_client, redis):
+    def test_verify_launch(self, docker_client, redis, shepherd):
         flock = TestShepherd.flock
         containers = flock['containers']
 
@@ -107,7 +107,7 @@ class TestShepherd(object):
             assert 'FOO=BAR2' in container.attrs['Config']['Env']
 
             # assert labels
-            assert container.labels[Shepherd.SHEP_REQID_LABEL] == self.reqid
+            assert container.labels[shepherd.reqid_label] == self.reqid
 
             # assert ip is set
             assert info['ip'] != ''

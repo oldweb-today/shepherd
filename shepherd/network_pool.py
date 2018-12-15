@@ -8,10 +8,14 @@ class NetworkPool(object):
     NETWORK_NAME = 'shepherd.net-{0}'
     NETWORK_LABEL = 'owt.network.managed'
 
-    def __init__(self, docker, network_templ=None, name='owt.netpool.default'):
+    def __init__(self, docker, network_templ=None,
+                 name='owt.netpool.default',
+                 network_label=None):
+
         self.docker = docker
         self.network_templ = network_templ or self.NETWORK_NAME
-        self.labels = {self.NETWORK_LABEL: name}
+        self.network_label = network_label or self.NETWORK_LABEL
+        self.labels = {self.network_label: name}
         self.pool_name = name
 
     def new_name(self):
@@ -32,7 +36,7 @@ class NetworkPool(object):
 
     def remove_network(self, network):
         try:
-            assert(network.attrs['Labels'][self.NETWORK_LABEL] == self.pool_name)
+            assert(network.attrs['Labels'][self.network_label] == self.pool_name)
             self.disconnect_all(network)
             network.remove()
             return True
