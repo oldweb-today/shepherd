@@ -123,6 +123,7 @@ class TestShepherd(object):
             else:
                 assert not redis.exists(user_params_key)
 
+
         # verify network
         assert docker_client.networks.get(flock['network'])
 
@@ -313,4 +314,23 @@ class TestShepherd(object):
 
         assert res['success'] == True
 
+    def test_start_not_deferred_container(self, shepherd, docker_client):
+        res = shepherd.request_flock('test_deferred', {'deferred': {'box-p': False}})
+
+        reqid = res['reqid']
+
+        res = shepherd.start_flock(reqid)
+
+        assert res['containers']['box-1']['id']
+        assert res['containers']['box-p']['id']
+
+        box_1 = docker_client.containers.get(res['containers']['box-1']['id'])
+        assert box_1.status == 'running'
+
+        box_p = docker_client.containers.get(res['containers']['box-p']['id'])
+        assert box_p.status == 'running'
+
+        res = shepherd.stop_flock(reqid)
+
+        assert res['success'] == True
 

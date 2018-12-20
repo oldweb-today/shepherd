@@ -19,6 +19,7 @@ class Shepherd(object):
     DEFAULT_FLOCKS = 'flocks.yaml'
 
     USER_PARAMS_KEY = 'up:{0}'
+    C_TO_U_KEY = 'cu:{0}'
 
     SHEP_REQID_LABEL = 'owt.shepherd.reqid'
 
@@ -107,8 +108,12 @@ class Shepherd(object):
 
         return True
 
-    def start_flock(self, reqid, labels=None, environ=None, pausable=False,
+    def start_flock(self, reqid,
+                    labels=None,
+                    environ=None,
+                    pausable=False,
                     network_pool=None):
+
         flock_req = FlockRequest(reqid)
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
@@ -126,6 +131,8 @@ class Shepherd(object):
         except:
             return {'error': 'invalid_flock',
                     'flock': flock_name}
+
+        req_deferred = flock_req.data.get('deferred', {})
 
         network = None
         containers = {}
@@ -146,7 +153,14 @@ class Shepherd(object):
             volume_binds, volumes = self.get_volumes(flock_req, flock_spec, labels, create=True)
 
             for image, spec in zip(image_list, flock_spec['containers']):
-                if spec.get('deferred'):
+                name = spec['name']
+
+                if name in req_deferred:
+                    deferred = req_deferred[name]
+                else:
+                    deferred = spec.get('deferred', False)
+
+                if deferred:
                     info = {'deferred': True, 'image': image}
 
                 else:
@@ -304,7 +318,8 @@ class Shepherd(object):
         name = spec['name'] + '-' + flock_req.reqid
 
         environ = spec.get('environment') or {}
-        environ.update(flock_req.data['environ'])
+        if 'environ' in flock_req.data:
+            environ.update(flock_req.data['environ'])
 
         cdata = api.create_container(
             image,
@@ -341,10 +356,12 @@ class Shepherd(object):
 
         info['ports'] = self.get_ports(container, ports)
 
-        if info['ip'] and flock_req.data['user_params'] and spec.get('set_user_params'):
+        if info['ip'] and flock_req.data.get('user_params') and spec.get('set_user_params'):
             # add reqid to userparams
             flock_req.data['user_params']['reqid'] = flock_req.reqid
-            self.redis.hmset(self.USER_PARAMS_KEY.format(info['ip']), flock_req.data['user_params'])
+            up_key = self.USER_PARAMS_KEY.format(info['ip'])
+            self.redis.hmset(up_key, flock_req.data['user_params'])
+            self.redis.set(self.C_TO_U_KEY.format(info['id']), up_key)
 
         return container, info
 
@@ -419,17 +436,13 @@ class Shepherd(object):
             except docker.errors.APIError as e:
                 pass
 
-            try:
-                container.remove(v=True, link=False, force=True)
-
-            except docker.errors.APIError as e:
-                pass
+            self._remove_container(container)
 
         if network:
             try:
                 network_pool = network_pool or self.network_pool
                 network_pool.remove_network(network)
-            except:
+            except Exception as e:
                 pass
 
         try:
@@ -438,6 +451,21 @@ class Shepherd(object):
             pass
 
         return {'success': True}
+
+    def _remove_container(self, container, v=False):
+        try:
+            short_id = self.short_id(container)
+            c_to_uparams = self.C_TO_U_KEY.format(short_id)
+            res = self.redis.get(c_to_uparams)
+            if res:
+                self.redis.delete(res)
+                self.redis.delete(c_to_uparams)
+
+            container.remove(force=True, v=v)
+            return short_id
+
+        except docker.errors.APIError:
+            return None
 
     def _do_graceful_stop(self, container, grace_time):
         def do_stop():
@@ -558,20 +586,10 @@ class Shepherd(object):
 
                     reqids.add(reqid)
 
-                    try:
-                        network_names.update(container.attrs['NetworkSettings']['Networks'].keys())
-                    except:
-                        pass
+                    short_id = self._remove_container(container)
+                    print('Removed untracked container: ' + str(short_id))
 
-
-                    try:
-                        short_id = self.short_id(container)
-                        container.remove(force=True)
-                        print('Removed untracked container: ' + short_id)
-                    except:
-                        pass
-
-                # remove volumes
+                # remove volumes + reqid
                 for reqid in reqids:
                     try:
                         res = self.docker.volumes.prune(filters={'label': self.reqid_label + '=' + reqid})
@@ -580,6 +598,8 @@ class Shepherd(object):
                             print('Removed Untracked Volumes: {0}'.format(pruned_volumes))
                     except:
                         pass
+
+                    FlockRequest(reqid).delete(self.redis)
 
                 # remove any networks these containers were connected to
                 for network_name in network_names:
@@ -617,12 +637,19 @@ class FlockRequest(object):
     def init_new(self, flock_name, req_opts):
         self.data = {'id': self.reqid,
                      'flock': flock_name,
-                     'overrides': req_opts.get('overrides', {}),
-                     'user_params': req_opts.get('user_params', {}),
-                     'environ': req_opts.get('environ', {}),
                      'state': 'new',
                     }
+
+        self._copy_if_set('overrides', req_opts)
+        self._copy_if_set('environ', req_opts, default={})
+        self._copy_if_set('user_params', req_opts)
+        self._copy_if_set('deferred', req_opts)
         return self
+
+    def _copy_if_set(self, param, src, default=None):
+        res = src.get(param, default)
+        if res is not None:
+            self.data[param] = res
 
     def update_env(self, environ):
         if not environ:

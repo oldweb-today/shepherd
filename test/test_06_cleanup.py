@@ -7,6 +7,8 @@ import docker
 
 from shepherd.wsgi import create_app
 
+
+
 @pytest.mark.usefixtures('client_class', 'docker_client')
 class TestCleanup(object):
     @classmethod
@@ -74,6 +76,37 @@ class TestCleanup(object):
         def assert_removed():
             assert num_containers == self._count_containers(docker_client, shepherd)
             assert num_volumes == self._count_volumes(docker_client, shepherd)
-            assert num_networks == self._count_networks(docker_client, shepherd)
+            #assert num_networks == self._count_networks(docker_client, shepherd)
 
-        self.sleep_try(0.5, 10.0, assert_removed)
+        self.sleep_try(2.0, 20.0, assert_removed)
+
+    def test_redis_pool_and_reqid_cleanup(self, docker_client, redis):
+        reqids = []
+
+        # start and kill containers
+        res = self.client.post('/api/request_flock/test_vol', json={'user_params': {'foo': 'bar'}})
+
+        reqid = res.json['reqid']
+
+        res = self.client.post('/api/start_flock/{0}'.format(reqid))
+
+        reqids.append(reqid)
+
+        try:
+            docker_client.containers.get(res.json['containers']['box-1']['id']).remove(force=True)
+        except:
+            pass
+
+        try:
+            docker_client.containers.get(res.json['containers']['box-2']['id']).remove(force=True)
+        except:
+            pass
+
+        def assert_removed():
+            for reqid in reqids:
+                assert not redis.exists('req:' + reqid)
+
+            assert len(redis.smembers('p:test-pool:f')) == 0
+            assert redis.keys('*') == []
+
+        self.sleep_try(1.0, 10.0, assert_removed)

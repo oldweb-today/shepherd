@@ -35,6 +35,7 @@ class FlockRequestOptsSchema(Schema):
     overrides = string_dict()
     user_params = string_dict()
     environ = string_dict()
+    deferred = fields.Dict(keys=fields.String(), values=fields.Boolean(), default=None)
 
 class GenericResponseSchema(Schema):
     reqid = fields.String()

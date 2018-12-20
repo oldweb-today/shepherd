@@ -71,5 +71,21 @@ class TestDeferred(object):
         res = self.client.post('/api/pool/stop_flock/{0}'.format(self.reqid))
         assert res.json == {'success': True}
 
+    def test_deferred_override(self):
+        # switch which container is deferred
+        json = {'deferred': {'box-p': False, 'box-1': True}}
 
+        res = self.client.post('/api/pool/request_flock/test_deferred', json=json)
+
+        print(res.json)
+        reqid = res.json['reqid']
+
+        res = self.client.post('/api/pool/start_flock/{0}'.format(reqid))
+
+        assert res.json['containers']
+        assert 'deferred' in res.json['containers']['box-1']
+        assert 'deferred' not in res.json['containers']['box-p']
+
+        res = self.client.post('/api/pool/stop_flock/{0}'.format(reqid))
+        assert res.json == {'success': True}
 

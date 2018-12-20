@@ -83,7 +83,7 @@ class TestFixedPoolApi:
         def assert_done():
             assert redis.scard('p:fixed-pool:f') == 2
 
-        self.sleep_try(0.2, 3.0, assert_done)
+        self.sleep_try(0.2, 6.0, assert_done)
 
         res = self.client.post('/api/start_flock/' + self.pending[1])
         assert res.json['queued'] == 1
@@ -102,7 +102,7 @@ class TestFixedPoolApi:
         def assert_done():
             assert redis.scard('p:fixed-pool:f') == 1
 
-        self.sleep_try(0.2, 3.0, assert_done)
+        self.sleep_try(0.2, 6.0, assert_done)
 
         res = self.start(self.pending[4])
         assert res['queued'] == 3

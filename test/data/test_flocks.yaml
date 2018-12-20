@@ -41,6 +41,7 @@ containers:
 
   - name: box-2
     image: test-shepherd/alpine
+    set_user_params: true
 
 
 ---
