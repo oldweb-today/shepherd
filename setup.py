@@ -30,7 +30,7 @@ setup(
     author_email='ikreymer@gmail.com',
     license='Apache 2.0',
     packages=find_packages(exclude=['test']),
-    #long_description=open('README.rst').read(),
+    long_description=open('README.md').read(),
     provides=[
         'shepherd',
         ],
