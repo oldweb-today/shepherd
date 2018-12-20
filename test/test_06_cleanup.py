@@ -110,6 +110,6 @@ class TestCleanup(object):
             assert len(redis.keys('up:*')) == 0
             assert len(redis.keys('cu:*')) == 0
 
-        print(self.redis.keys('*'))
+        print(redis.keys('*'))
         self.sleep_try(1.0, 10.0, assert_removed)
         assert False
