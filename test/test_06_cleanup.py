@@ -107,7 +107,6 @@ class TestCleanup(object):
                 assert not redis.exists('req:' + reqid)
 
             assert len(redis.smembers('p:test-pool:f')) == 0
-            assert redis.keys('*') == ['p:test-pool:f']
+            assert redis.keys('*') == []
 
         self.sleep_try(1.0, 10.0, assert_removed)
-        assert False
