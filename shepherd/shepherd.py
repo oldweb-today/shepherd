@@ -589,7 +589,7 @@ class Shepherd(object):
                     short_id = self._remove_container(container)
                     print('Removed untracked container: ' + str(short_id))
 
-                # remove volumes
+                # remove volumes + reqid
                 for reqid in reqids:
                     try:
                         res = self.docker.volumes.prune(filters={'label': self.reqid_label + '=' + reqid})
@@ -598,6 +598,8 @@ class Shepherd(object):
                             print('Removed Untracked Volumes: {0}'.format(pruned_volumes))
                     except:
                         pass
+
+                    FlockRequest(reqid).delete(self.redis)
 
                 # remove any networks these containers were connected to
                 for network_name in network_names:

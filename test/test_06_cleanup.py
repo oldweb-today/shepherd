@@ -110,5 +110,5 @@ class TestCleanup(object):
             assert redis.keys('up:*') == []
             assert redis.keys('cu:*') == []
 
-        self.sleep_try(0.5, 20.0, assert_removed)
+        self.sleep_try(1.0, 30.0, assert_removed)
 
