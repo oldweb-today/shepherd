@@ -203,10 +203,9 @@ class Shepherd(object):
         if not port_map:
             return ports
 
-        for port_name in port_map:
+        for port_name, port in port_map.items():
             try:
-                port = port_map[port_name]
-                pinfo = container.attrs['NetworkSettings']['Ports'][str(port) + '/tcp']
+                pinfo = container.attrs['NetworkSettings']['Ports'][port]
                 pinfo = pinfo[0]
                 ports[port_name] = int(pinfo['HostPort'])
 
@@ -300,13 +299,18 @@ class Shepherd(object):
             )
         })
 
-        ports = spec.get('ports')
-        if ports:
-            port_values = list(ports.values())
-            port_bindings = {int(port): None for port in port_values}
-        else:
-            port_values = None
-            port_bindings = None
+        port_values = []
+        port_bindings = {}
+
+        ports = spec.get('ports', {})
+
+        for port_name, port in ports.items():
+            if isinstance(port, int) or '/' not in port:
+                port = str(port) + '/tcp'
+                ports[port_name] = port
+
+            port_bindings[port] = None
+            port_values.append(tuple(port.split('/', 1)))
 
         host_config = api.create_host_config(auto_remove=auto_remove,
                                              cap_add=['ALL'],

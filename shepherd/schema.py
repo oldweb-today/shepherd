@@ -6,7 +6,7 @@ def string_dict():
 class ContainerSchema(Schema):
     name = fields.String()
     image = fields.String()
-    ports = fields.Dict(keys=fields.String(), values=fields.Int(), default={})
+    ports = string_dict()
     environment = string_dict()
     external_network = fields.String()
     set_user_params = fields.Boolean(default=False)

@@ -8,7 +8,7 @@ containers:
   - name: busybox
     image: test-shepherd/busybox
     ports:
-      port_a: 8200
+      port_a: 8200/udp
       port_b: 9356
 
   - name: another-box
@@ -87,6 +87,6 @@ containers:
     deferred: true
 
     ports:
-      port_a: 8234
+      port_a: 8234/udp
 
 
