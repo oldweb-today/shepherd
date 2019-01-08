@@ -23,6 +23,8 @@ class Shepherd(object):
 
     SHEP_REQID_LABEL = 'owt.shepherd.reqid'
 
+    SHEP_DEFERRED_LABEL = 'owt.shepherd.deferred'
+
     DEFAULT_REQ_TTL = 120
 
     UNTRACKED_CHECK_TIME = 30
@@ -246,6 +248,7 @@ class Shepherd(object):
         try:
             labels = labels or {}
             labels[self.reqid_label] = flock_req.reqid
+            labels[self.SHEP_DEFERRED_LABEL] = '1'
 
             spec = self.find_spec_for_flock_req(flock_req, image_name)
 

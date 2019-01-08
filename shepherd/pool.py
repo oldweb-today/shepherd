@@ -299,6 +299,18 @@ class PersistentPool(LaunchAllPool):
 
         self.stop_on_pause = kwargs.get('stop_on_pause', False)
 
+    def handle_die_event(self, reqid, event):
+        super(PersistentPool, self).handle_die_event(reqid, event)
+
+        attrs = event['Actor']['Attributes']
+
+        print(attrs)
+
+        # if 'clean exit', then stop entire flock, don't reschedule
+        if attrs['exitCode'] == '0' and attrs.get(self.shepherd.SHEP_DEFERRED_LABEL) != '1':
+            print('Persistent Flock Fully Finished: ' + reqid)
+            self.stop(reqid)
+
     def num_avail(self):
         max_size = self.redis.hget(self.pool_key, 'max_size')
         return int(max_size) - self.curr_size()
