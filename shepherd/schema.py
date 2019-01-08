@@ -48,6 +48,7 @@ class LaunchContainerSchema(Schema):
     id = fields.String()
     deferred = fields.Boolean()
     image = fields.String()
+    environ = string_dict()
 
 class LaunchResponseSchema(Schema):
     reqid = fields.String()

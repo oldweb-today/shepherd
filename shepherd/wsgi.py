@@ -37,7 +37,7 @@ class Validator():
 
         if self.req_schema:
             try:
-                input_data = request.json or{}
+                input_data = request.json or {}
                 req_params = self.req_schema().load(input_data)
                 kwargs['request'] = req_params
             except marshmallow.exceptions.ValidationError as ve:

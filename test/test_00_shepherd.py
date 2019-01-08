@@ -123,6 +123,19 @@ class TestShepherd(object):
             else:
                 assert not redis.exists(user_params_key)
 
+            if name == 'another-box':
+                assert info['environ'] == {
+                    'ANOTHER': 'VALUE',
+                    'TEST': 'FOO',
+                    'VAR': 'BAR',
+                    'FOO': 'BAR2'
+                }
+
+            else:
+                assert info['environ'] == {
+                    'ANOTHER': 'VALUE',
+                    'FOO': 'BAR2'
+                }
 
         # verify network
         assert docker_client.networks.get(flock['network'])

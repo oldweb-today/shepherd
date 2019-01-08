@@ -1,7 +1,7 @@
 from shepherd.schema import FlockIdSchema, FlockRequestOptsSchema, GenericResponseSchema
 from shepherd.schema import LaunchResponseSchema, LaunchContainerSchema
 
-from flask import Response
+from flask import Response, request
 
 
 # ============================================================================
@@ -75,7 +75,8 @@ def init_routes(app):
                 404:
                     schema: GenericResponseSchema
         """
-        return app.get_pool(pool).start(reqid)
+        json_data = request.json or {}
+        return app.get_pool(pool).start(reqid, environ=json_data.get('environ'))
 
     @app.route(['/api/stop_flock/<reqid>', '/api/<pool>/stop_flock/<reqid>'], methods=['POST'],
                resp_schema=GenericResponseSchema)

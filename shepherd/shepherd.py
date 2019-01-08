@@ -363,6 +363,8 @@ class Shepherd(object):
             self.redis.hmset(up_key, flock_req.data['user_params'])
             self.redis.set(self.C_TO_U_KEY.format(info['id']), up_key)
 
+        info['environ'] = environ
+
         return container, info
 
     def get_network(self, flock_req):

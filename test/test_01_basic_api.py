@@ -49,9 +49,12 @@ class TestBasicApi:
         assert not redis.hget('p:test-pool:i', 'size')
 
     def test_start_flock(self, pool, redis):
-        res = self.client.post('/api/start_flock/' + self.reqid)
-        assert res.json['network']
+        res = self.client.post('/api/start_flock/' + self.reqid,
+                               json={'environ': {'NEW': 'VALUE'}})
+
         assert res.json['containers']['box']
+        assert res.json['containers']['box']['environ']['NEW'] == 'VALUE'
+        assert res.json['network']
 
         time.sleep(0.2)
         assert len(pool.start_events) == 2
