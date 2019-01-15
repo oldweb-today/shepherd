@@ -75,7 +75,7 @@ class TestFixedPoolApi:
     def test_pool_full_request(self, redis):
         for x in range(0, 10):
             res, reqid = self.queue_req()
-            assert res['queued'] == x
+            assert res['queue'] == x
 
     def test_expire_queue_next_in_order(self, redis, docker_client):
         self.remove_next(docker_client)
@@ -86,14 +86,14 @@ class TestFixedPoolApi:
         self.sleep_try(0.2, 6.0, assert_done)
 
         res = self.client.post('/api/start_flock/' + self.pending[1])
-        assert res.json['queued'] == 1
+        assert res.json['queue'] == 1
 
         res = self.client.post('/api/start_flock/' + self.pending[0])
         assert res.json['containers']['box']
         self.ids.append(res.json['containers']['box']['id'])
 
         res = self.client.post('/api/start_flock/' + self.pending[1])
-        assert res.json['queued'] == 0
+        assert res.json['queue'] == 0
 
     def test_expire_queue_next_out_of_order(self, redis, docker_client):
         self.remove_next(docker_client)
@@ -105,29 +105,29 @@ class TestFixedPoolApi:
         self.sleep_try(0.2, 6.0, assert_done)
 
         res = self.start(self.pending[4])
-        assert res['queued'] == 3
+        assert res['queue'] == 3
 
         res = self.start(self.pending[2])
         assert res['containers']
 
         res = self.start(self.pending[4])
-        assert res['queued'] == 3
+        assert res['queue'] == 3
 
         res = self.start(self.pending[1])
         assert res['containers']
 
         res = self.start(self.pending[4])
-        assert res['queued'] == 1
+        assert res['queue'] == 1
 
         res = self.start(self.pending[3])
-        assert res['queued'] == 0
+        assert res['queue'] == 0
 
     def test_expire_unused(self, redis, fixed_pool):
         res = self.start(self.pending[6])
-        assert res['queued'] == 3
+        assert res['queue'] == 3
 
         res, reqid = self.queue_req()
-        assert res['queued'] == 7
+        assert res['queue'] == 7
 
         # simulate expiry
         fixed_pool.remove_request(self.pending[3])
@@ -136,14 +136,14 @@ class TestFixedPoolApi:
         fixed_pool.remove_request(self.pending[6])
 
         res = self.start(reqid)
-        assert res['queued'] == 3
+        assert res['queue'] == 3
 
         res = self.start(self.pending[7])
-        assert res['queued'] == 0
+        assert res['queue'] == 0
 
         res = self.start(self.pending[6])
-        assert res['queued'] == 4
+        assert res['queue'] == 4
 
         res = self.start(self.pending[3])
-        assert res['queued'] == 5
+        assert res['queue'] == 5
 

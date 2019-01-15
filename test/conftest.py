@@ -133,13 +133,13 @@ def app(shepherd, pool):
 def docker_client():
     docker_cli = docker.from_env()
 
-    for filename in glob.glob(os.path.join(TEST_DIR, 'Dockerfile.*')):
+    for filename in sorted(glob.glob(os.path.join(TEST_DIR, 'Dockerfile.*'))):
         path, dockerfile = os.path.split(filename)
         name = dockerfile.rsplit('.', 1)[1]
         docker_cli.images.build(path=path,
-                                   dockerfile=dockerfile,
-                                   tag='test-shepherd/' + name,
-                                   rm=True)
+                                dockerfile=dockerfile,
+                                tag='test-shepherd/' + name,
+                                rm=True)
 
     yield docker_cli
 

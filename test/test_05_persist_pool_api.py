@@ -110,7 +110,7 @@ class TestPersistPoolApi:
 
         for x in range(1, 4):
             res, reqid = self.do_req_and_start()
-            assert res['queued'] == x - 1
+            assert res['queue'] == x - 1
             assert redis.scard('p:persist-pool:f') == 3
 
             assert redis.llen('p:persist-pool:q') == x
@@ -118,7 +118,7 @@ class TestPersistPoolApi:
 
             # ensure double start doesn't move position
             res = self.client.post('/api/persist-pool/start_flock/' + reqid)
-            assert res.json['queued'] == x - 1
+            assert res.json['queue'] == x - 1
 
         for x in range(1, 10):
             time.sleep(2.1)

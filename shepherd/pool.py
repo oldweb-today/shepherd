@@ -201,7 +201,7 @@ class FixedSizePool(LaunchAllPool):
 
         pos = self.get_queue_pos(reqid)
         if pos >= 0:
-            return {'queued': pos}
+            return {'queue': pos}
 
         res = super(FixedSizePool, self).start(reqid, environ=environ)
 
@@ -320,13 +320,13 @@ class PersistentPool(LaunchAllPool):
                                                      pausable=self.stop_on_pause)
 
         elif self.redis.sismember(self.pool_wait_set, reqid):
-            return {'queued': self._find_wait_pos(reqid)}
+            return {'queue': self._find_wait_pos(reqid)}
 
         self._add_persist(reqid)
 
         if self.num_avail() == 0:
             pos = self._push_wait(reqid)
-            return {'queued': pos - 1}
+            return {'queue': pos - 1}
 
         return super(PersistentPool, self).start(reqid, environ=environ,
                                                  pausable=self.stop_on_pause)
