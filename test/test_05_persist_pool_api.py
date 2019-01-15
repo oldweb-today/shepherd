@@ -1,8 +1,7 @@
 from gevent.monkey import patch_all; patch_all()
 import pytest
 import time
-import itertools
-
+from utils import sleep_try
 
 from shepherd.wsgi import create_app
 
@@ -19,18 +18,6 @@ def app(shepherd, persist_pool, fixed_pool):
 @pytest.mark.usefixtures('client_class', 'docker_client')
 class TestPersistPoolApi:
     reqids = []
-
-    @classmethod
-    def sleep_try(cls, sleep_interval, max_time, test_func):
-        max_count = float(max_time) / sleep_interval
-        for counter in itertools.count():
-            try:
-                time.sleep(sleep_interval)
-                test_func()
-                return
-            except:
-                if counter >= max_count:
-                    raise
 
     def start(self, reqid):
         res = self.client.post('/api/persist-pool/start_flock/' + reqid)
@@ -78,7 +65,7 @@ class TestPersistPoolApi:
             assert persist_pool.reqid_starts[reqid] == 2
             assert persist_pool.reqid_stops[reqid] == 2
 
-        self.sleep_try(0.2, 10.0, assert_done)
+        sleep_try(0.2, 10.0, assert_done)
 
         persist_pool.start_events.clear()
         persist_pool.stop_events.clear()
@@ -103,7 +90,7 @@ class TestPersistPoolApi:
             assert redis.llen('p:persist-pool:q') == 0
             assert redis.scard('p:persist-pool:f') == 3
 
-        self.sleep_try(0.2, 5.0, assert_done)
+        sleep_try(0.2, 5.0, assert_done)
 
     def test_full_queue_additional(self, redis, persist_pool):
         assert len(persist_pool.start_events) == 6
@@ -139,7 +126,7 @@ class TestPersistPoolApi:
             assert len(persist_pool.stop_events) >= 10
 
 
-        self.sleep_try(0.2, 20.0, assert_done)
+        sleep_try(0.2, 20.0, assert_done)
 
     def test_stop_one_run_next(self, redis, persist_pool):
         reqid = redis.srandmember('p:persist-pool:f')
@@ -153,7 +140,7 @@ class TestPersistPoolApi:
             assert len(persist_pool.stop_events) >= num_stopped + 2
             assert len(persist_pool.start_events) >= num_started + 2
 
-        self.sleep_try(0.2, 5.0, assert_done)
+        sleep_try(0.2, 5.0, assert_done)
 
     def test_stop_all(self, redis, persist_pool):
         while len(self.reqids) > 0:
@@ -170,5 +157,5 @@ class TestPersistPoolApi:
 
             assert persist_pool.reqid_starts == persist_pool.reqid_stops
 
-        self.sleep_try(0.2, 20.0, assert_done)
+        sleep_try(0.2, 20.0, assert_done)
 

@@ -1,9 +1,8 @@
 from gevent.monkey import patch_all; patch_all()
 import pytest
-import time
-import itertools
 
 from shepherd.wsgi import create_app
+from utils import sleep_try
 
 
 @pytest.fixture(scope='module')
@@ -16,18 +15,6 @@ def app(shepherd, fixed_pool):
 class TestFixedPoolApi:
     ids = []
     pending = []
-
-    @classmethod
-    def sleep_try(cls, sleep_interval, max_time, test_func):
-        max_count = float(max_time) / sleep_interval
-        for counter in itertools.count():
-            try:
-                time.sleep(sleep_interval)
-                test_func()
-                return
-            except:
-                if counter >= max_count:
-                    raise
 
     def remove_next(self, docker_client):
         cid = self.ids.pop()
@@ -83,7 +70,7 @@ class TestFixedPoolApi:
         def assert_done():
             assert redis.scard('p:fixed-pool:f') == 2
 
-        self.sleep_try(0.2, 6.0, assert_done)
+        sleep_try(0.2, 6.0, assert_done)
 
         res = self.client.post('/api/start_flock/' + self.pending[1])
         assert res.json['queue'] == 1
@@ -102,7 +89,7 @@ class TestFixedPoolApi:
         def assert_done():
             assert redis.scard('p:fixed-pool:f') == 1
 
-        self.sleep_try(0.2, 6.0, assert_done)
+        sleep_try(0.2, 6.0, assert_done)
 
         res = self.start(self.pending[4])
         assert res['queue'] == 3

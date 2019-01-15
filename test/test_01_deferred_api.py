@@ -1,7 +1,5 @@
 from gevent.monkey import patch_all; patch_all()
 import pytest
-import time
-import itertools
 
 from shepherd.wsgi import create_app
 

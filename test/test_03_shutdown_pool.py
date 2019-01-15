@@ -1,6 +1,7 @@
 from gevent.monkey import patch_all; patch_all()
 import pytest
 import time
+from utils import sleep_try
 
 
 # ============================================================================
@@ -25,9 +26,11 @@ class TestTimedPoolShutdownContainer:
 
         docker_client.containers.get(self.container['id']).kill()
 
-        time.sleep(1.1)
+        def assert_done():
+            assert not redis.exists('p:test-pool:rq:' + self.reqid)
+            assert redis.scard('p:test-pool:f') == 0
+            assert len(pool.stop_events) == 2
 
-        assert not redis.exists('p:test-pool:rq:' + self.reqid)
-        assert redis.scard('p:test-pool:f') == 0
-        assert len(pool.stop_events) == 2
+        sleep_try(0.2, 6.0, assert_done)
+
 

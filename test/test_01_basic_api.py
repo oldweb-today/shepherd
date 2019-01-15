@@ -1,6 +1,6 @@
 from gevent.monkey import patch_all; patch_all()
 import pytest
-import time
+from utils import sleep_try
 
 
 # ============================================================================
@@ -56,8 +56,11 @@ class TestBasicApi:
         assert res.json['containers']['box']['environ']['NEW'] == 'VALUE'
         assert res.json['network']
 
-        time.sleep(0.2)
-        assert len(pool.start_events) == 2
+        def assert_done():
+            assert len(pool.start_events) == 2
+
+        sleep_try(0.2, 6.0, assert_done)
+
         for event in pool.start_events:
             assert event['Action'] == 'start'
             assert event['Actor']['Attributes'][pool.shepherd.reqid_label] == self.reqid
@@ -69,8 +72,11 @@ class TestBasicApi:
         res = self.client.post('/api/stop_flock/' + self.reqid)
         assert res.json['success'] == True
 
-        time.sleep(0.2)
-        assert len(pool.stop_events) == 2
+        def assert_done():
+            assert len(pool.stop_events) == 2
+
+        sleep_try(0.2, 6.0, assert_done)
+
         for event in pool.stop_events:
             assert event['Action'] == 'die'
             assert event['Actor']['Attributes'][pool.shepherd.reqid_label] == self.reqid
