@@ -3,6 +3,7 @@ import pytest
 import time
 import itertools
 
+
 from shepherd.wsgi import create_app
 
 
@@ -55,6 +56,35 @@ class TestPersistPoolApi:
         data = res.json or {}
         TestPersistPoolApi.reqids.append(reqid)
         return data, reqid
+
+    def test_dont_reque_on_clean_exit(self, redis, persist_pool):
+        # if a clean exit (exit code, 0)
+        res, reqid = self.do_req_and_start(overrides={'box': 'test-shepherd/exit0'})
+        assert res['containers']['box']
+        assert redis.scard('p:persist-pool:f') == 1
+
+        new_res = self.client.post('/api/persist-pool/start_flock/' + reqid)
+
+        def assert_done():
+            # not running
+            assert redis.scard('p:persist-pool:f') == 0
+
+            # not queued for restart
+            assert redis.scard('p:persist-pool:s') == 0
+
+            assert len(persist_pool.start_events) == 2
+            assert len(persist_pool.stop_events) == 2
+
+            assert persist_pool.reqid_starts[reqid] == 2
+            assert persist_pool.reqid_stops[reqid] == 2
+
+        self.sleep_try(0.2, 10.0, assert_done)
+
+        persist_pool.start_events.clear()
+        persist_pool.stop_events.clear()
+
+        persist_pool.reqid_starts.clear()
+        persist_pool.reqid_stops.clear()
 
     def test_full_continue_running(self, redis, persist_pool):
         for x in range(1, 4):

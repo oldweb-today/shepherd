@@ -506,7 +506,9 @@ class Shepherd(object):
         return volume_binds, volumes_list
 
     def get_flock_containers(self, flock_req):
-        return self.docker.containers.list(all=True, filters={'label': self.reqid_label + '=' + flock_req.reqid})
+        return self.docker.containers.list(all=True,
+                                           filters={'label': self.reqid_label + '=' + flock_req.reqid},
+                                           ignore_removed=True) or []
 
     def remove_flock_volumes(self, flock_req):
         num_volumes = flock_req.data.get('num_volumes', 0)
@@ -582,7 +584,9 @@ class Shepherd(object):
 
         while True:
             try:
-                all_containers = self.docker.containers.list(all=False, filters=filters)
+                all_containers = self.docker.containers.list(all=False,
+                                                             filters=filters,
+                                                             ignore_removed=True)
 
                 reqids = set()
                 network_names = set()

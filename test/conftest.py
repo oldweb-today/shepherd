@@ -7,6 +7,7 @@ import fakeredis
 import os
 import docker
 import glob
+import gevent.lock
 
 
 NETWORKS_NAME = 'test-shepherd.net:{0}'
@@ -26,30 +27,34 @@ class DebugMixin(object):
         super(DebugMixin, self).__init__(*args, **kwargs)
         self.start_events = []
         self.stop_events = []
+        self._lock = gevent.lock.Semaphore()
 
         self.reqid_starts = {}
         self.reqid_stops = {}
 
-    def handle_die_event(self, reqid, event):
-        super(DebugMixin, self).handle_die_event(reqid, event)
+    def handle_die_event(self, reqid, event, attrs):
         self.stop_events.append(event)
 
         try:
-            reqid = event['Actor']['Attributes'][TEST_REQID_LABEL]
-            self.reqid_stops[reqid] = self.reqid_stops.get(reqid, 0) + 1
+            reqid = attrs[TEST_REQID_LABEL]
+            with self._lock:
+                self.reqid_stops[reqid] = self.reqid_stops.get(reqid, 0) + 1
         except:
             pass
 
-    def handle_start_event(self, reqid, event):
-        super(DebugMixin, self).handle_start_event(reqid, event)
+        super(DebugMixin, self).handle_die_event(reqid, event, attrs)
+
+    def handle_start_event(self, reqid, event, attrs):
         self.start_events.append(event)
 
         try:
-            reqid = event['Actor']['Attributes'][TEST_REQID_LABEL]
-            self.reqid_starts[reqid] = self.reqid_starts.get(reqid, 0) + 1
+            reqid = attrs[TEST_REQID_LABEL]
+            with self._lock:
+                self.reqid_starts[reqid] = self.reqid_starts.get(reqid, 0) + 1
         except:
             pass
 
+        super(DebugMixin, self).handle_start_event(reqid, event, attrs)
 
 class DebugLaunchAllPool(DebugMixin, LaunchAllPool):
     pass

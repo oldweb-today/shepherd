@@ -1,4 +1,5 @@
 import gevent
+import traceback
 from shepherd.network_pool import CachedNetworkPool
 
 
@@ -118,20 +119,22 @@ class LaunchAllPool(object):
                 if not self.running:
                     break
 
-                reqid = event['Actor']['Attributes'][self.shepherd.reqid_label]
+                attrs = event['Actor']['Attributes']
+                reqid = attrs[self.shepherd.reqid_label]
+
                 if event['status'] == 'die':
-                    self.handle_die_event(reqid, event)
+                    self.handle_die_event(reqid, event, attrs)
 
                 elif event['status'] == 'start':
-                    self.handle_start_event(reqid, event)
+                    self.handle_start_event(reqid, event, attrs)
 
             except Exception as e:
                 print(e)
 
-    def handle_die_event(self, reqid, event):
+    def handle_die_event(self, reqid, event, attrs):
         self._mark_stopped(reqid)
 
-    def handle_start_event(self, reqid, event):
+    def handle_start_event(self, reqid, event, attrs):
         pass
 
     def expire_loop(self):
@@ -299,16 +302,12 @@ class PersistentPool(LaunchAllPool):
 
         self.stop_on_pause = kwargs.get('stop_on_pause', False)
 
-    def handle_die_event(self, reqid, event):
-        super(PersistentPool, self).handle_die_event(reqid, event)
-
-        attrs = event['Actor']['Attributes']
-
-        print(attrs)
+    def handle_die_event(self, reqid, event, attrs):
+        super(PersistentPool, self).handle_die_event(reqid, event, attrs)
 
         # if 'clean exit', then stop entire flock, don't reschedule
         if attrs['exitCode'] == '0' and attrs.get(self.shepherd.SHEP_DEFERRED_LABEL) != '1':
-            print('Persistent Flock Fully Finished: ' + reqid)
+            #print('Persistent Flock Fully Finished: ' + reqid)
             self.stop(reqid)
 
     def num_avail(self):
@@ -425,7 +424,6 @@ class PersistentPool(LaunchAllPool):
                 break
 
             except Exception as e:
-                import traceback
                 traceback.print_exc()
                 self.remove_running(reqid)
                 reqid = self._pop_wait()
