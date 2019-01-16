@@ -157,5 +157,5 @@ class TestPersistPoolApi:
 
             assert persist_pool.reqid_starts == persist_pool.reqid_stops
 
-        sleep_try(0.2, 25.0, assert_done)
+        sleep_try(0.2, 35.0, assert_done)
 
