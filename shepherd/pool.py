@@ -185,7 +185,7 @@ class FixedSizePool(LaunchAllPool):
         self.reqid_to_number = self.REQID_TO_NUMBER.format(id=self.name)
         self.number_to_reqid = self.NUMBER_TO_REQID.format(id=self.name)
 
-        self.number_ttl = kwargs.get('number_ttl', self.NUMBER_TTL)
+        self.number_ttl = int(kwargs.get('number_ttl', self.NUMBER_TTL))
 
     def request(self, flock_name, req_opts):
         res = super(FixedSizePool, self).request(flock_name, req_opts)
