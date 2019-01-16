@@ -23,6 +23,8 @@ class Shepherd(object):
 
     SHEP_REQID_LABEL = 'owt.shepherd.reqid'
 
+    SHEP_DEFERRED_LABEL = 'owt.shepherd.deferred'
+
     DEFAULT_REQ_TTL = 120
 
     UNTRACKED_CHECK_TIME = 30
@@ -45,9 +47,20 @@ class Shepherd(object):
 
         self.reqid_label = reqid_label or self.SHEP_REQID_LABEL
 
-        self.untracked_check_time = untracked_check_time or self.UNTRACKED_CHECK_TIME
+        self.untracked_check_time = 0
+        self.start_cleanup_loop(untracked_check_time)
 
+    def start_cleanup_loop(self, untracked_check_time):
         if self.untracked_check_time > 0:
+            # already started
+            return
+
+        if untracked_check_time is None:
+            untracked_check_time = self.UNTRACKED_CHECK_TIME
+
+        self.untracked_check_time = untracked_check_time
+
+        if untracked_check_time > 0:
             gevent.spawn(self.untracked_check_loop)
 
     def load_flocks(self, flocks_file_or_dir):
@@ -246,6 +259,7 @@ class Shepherd(object):
         try:
             labels = labels or {}
             labels[self.reqid_label] = flock_req.reqid
+            labels[self.SHEP_DEFERRED_LABEL] = '1'
 
             spec = self.find_spec_for_flock_req(flock_req, image_name)
 
@@ -412,11 +426,6 @@ class Shepherd(object):
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
 
-        if not keep_reqid:
-            flock_req.delete(self.redis)
-        else:
-            flock_req.stop(self.redis)
-
         try:
             network = self.get_network(flock_req)
         except:
@@ -455,6 +464,13 @@ class Shepherd(object):
             self.remove_flock_volumes(flock_req)
         except:
             pass
+
+        # delete flock after docker removal is finished to avoid race condition
+        # with 'untracked' container removal
+        if not keep_reqid:
+            flock_req.delete(self.redis)
+        else:
+            flock_req.stop(self.redis)
 
         return {'success': True}
 
@@ -503,7 +519,9 @@ class Shepherd(object):
         return volume_binds, volumes_list
 
     def get_flock_containers(self, flock_req):
-        return self.docker.containers.list(all=True, filters={'label': self.reqid_label + '=' + flock_req.reqid})
+        return self.docker.containers.list(all=True,
+                                           filters={'label': self.reqid_label + '=' + flock_req.reqid},
+                                           ignore_removed=True) or []
 
     def remove_flock_volumes(self, flock_req):
         num_volumes = flock_req.data.get('num_volumes', 0)
@@ -577,9 +595,11 @@ class Shepherd(object):
 
         filters = {'label': self.reqid_label}
 
-        while True:
+        while self.untracked_check_time > 0:
             try:
-                all_containers = self.docker.containers.list(all=False, filters=filters)
+                all_containers = self.docker.containers.list(all=False,
+                                                             filters=filters,
+                                                             ignore_removed=True)
 
                 reqids = set()
                 network_names = set()
@@ -590,10 +610,12 @@ class Shepherd(object):
                     if self.is_valid_flock(reqid):
                         continue
 
+                    print('Invalid Flock: ' + reqid)
+
                     reqids.add(reqid)
 
                     short_id = self._remove_container(container)
-                    print('Removed untracked container: ' + str(short_id))
+                    print('Removed untracked container from flock {0}: {1}'.format(reqid, short_id))
 
                 # remove volumes + reqid
                 for reqid in reqids:

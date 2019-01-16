@@ -52,7 +52,7 @@ class LaunchContainerSchema(Schema):
 
 class LaunchResponseSchema(Schema):
     reqid = fields.String()
-    queued = fields.Int()
+    queue = fields.Int()
     network = fields.String()
     containers = fields.Dict(keys=fields.String(), values=fields.Nested(LaunchContainerSchema))
 

@@ -1,6 +1,6 @@
 from gevent.monkey import patch_all; patch_all()
 import pytest
-import time
+from utils import sleep_try
 
 
 # ============================================================================
@@ -20,15 +20,16 @@ class TestTimedPoolApi:
         TestTimedPoolApi.reqid = reqid
 
     def test_flock_still_running(self, redis):
-        time.sleep(0.9)
+        def assert_done():
+            assert redis.exists('p:test-pool:rq:' + self.reqid)
+            assert redis.scard('p:test-pool:f') == 1
 
-        assert redis.exists('p:test-pool:rq:' + self.reqid)
-        assert redis.scard('p:test-pool:f') == 1
+        sleep_try(0.2, 6.0, assert_done)
 
     def test_flock_wait_expire(self, redis):
-        time.sleep(3.2)
+        def assert_done():
+            assert not redis.exists('p:test-pool:rq:' + self.reqid)
+            assert redis.scard('p:test-pool:f') == 0
 
-        assert not redis.exists('p:test-pool:rq:' + self.reqid)
-        assert redis.scard('p:test-pool:f') == 0
-
+        sleep_try(0.2, 6.0, assert_done)
 

@@ -1,0 +1,5 @@
+FROM test-shepherd/busybox
+
+ENV FOO EXIT
+CMD sh -c 'exit 0'
+

@@ -1,4 +1,5 @@
 import gevent
+import traceback
 from shepherd.network_pool import CachedNetworkPool
 
 
@@ -118,20 +119,22 @@ class LaunchAllPool(object):
                 if not self.running:
                     break
 
-                reqid = event['Actor']['Attributes'][self.shepherd.reqid_label]
+                attrs = event['Actor']['Attributes']
+                reqid = attrs[self.shepherd.reqid_label]
+
                 if event['status'] == 'die':
-                    self.handle_die_event(reqid, event)
+                    self.handle_die_event(reqid, event, attrs)
 
                 elif event['status'] == 'start':
-                    self.handle_start_event(reqid, event)
+                    self.handle_start_event(reqid, event, attrs)
 
             except Exception as e:
                 print(e)
 
-    def handle_die_event(self, reqid, event):
+    def handle_die_event(self, reqid, event, attrs):
         self._mark_stopped(reqid)
 
-    def handle_start_event(self, reqid, event):
+    def handle_start_event(self, reqid, event, attrs):
         pass
 
     def expire_loop(self):
@@ -182,7 +185,7 @@ class FixedSizePool(LaunchAllPool):
         self.reqid_to_number = self.REQID_TO_NUMBER.format(id=self.name)
         self.number_to_reqid = self.NUMBER_TO_REQID.format(id=self.name)
 
-        self.number_ttl = kwargs.get('number_ttl', self.NUMBER_TTL)
+        self.number_ttl = int(kwargs.get('number_ttl', self.NUMBER_TTL))
 
     def request(self, flock_name, req_opts):
         res = super(FixedSizePool, self).request(flock_name, req_opts)
@@ -198,7 +201,7 @@ class FixedSizePool(LaunchAllPool):
 
         pos = self.get_queue_pos(reqid)
         if pos >= 0:
-            return {'queued': pos}
+            return {'queue': pos}
 
         res = super(FixedSizePool, self).start(reqid, environ=environ)
 
@@ -299,6 +302,14 @@ class PersistentPool(LaunchAllPool):
 
         self.stop_on_pause = kwargs.get('stop_on_pause', False)
 
+    def handle_die_event(self, reqid, event, attrs):
+        super(PersistentPool, self).handle_die_event(reqid, event, attrs)
+
+        # if 'clean exit', then stop entire flock, don't reschedule
+        if attrs['exitCode'] == '0' and attrs.get(self.shepherd.SHEP_DEFERRED_LABEL) != '1':
+            #print('Persistent Flock Fully Finished: ' + reqid)
+            self.stop(reqid)
+
     def num_avail(self):
         max_size = self.redis.hget(self.pool_key, 'max_size')
         return int(max_size) - self.curr_size()
@@ -309,13 +320,13 @@ class PersistentPool(LaunchAllPool):
                                                      pausable=self.stop_on_pause)
 
         elif self.redis.sismember(self.pool_wait_set, reqid):
-            return {'queued': self._find_wait_pos(reqid)}
+            return {'queue': self._find_wait_pos(reqid)}
 
         self._add_persist(reqid)
 
         if self.num_avail() == 0:
             pos = self._push_wait(reqid)
-            return {'queued': pos - 1}
+            return {'queue': pos - 1}
 
         return super(PersistentPool, self).start(reqid, environ=environ,
                                                  pausable=self.stop_on_pause)
@@ -413,7 +424,6 @@ class PersistentPool(LaunchAllPool):
                 break
 
             except Exception as e:
-                import traceback
                 traceback.print_exc()
                 self.remove_running(reqid)
                 reqid = self._pop_wait()
