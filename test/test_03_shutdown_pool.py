@@ -18,13 +18,19 @@ class TestTimedPoolShutdownContainer:
         TestTimedPoolShutdownContainer.container = res.json['containers']['box']
         TestTimedPoolShutdownContainer.reqid = reqid
 
-        assert redis.scard('p:test-pool:f') == 1
-        assert redis.ttl('p:test-pool:rq:'+ reqid) <= 1.0
+        def assert_done():
+            assert redis.scard('p:test-pool:f') == 1
+            assert redis.ttl('p:test-pool:rq:'+ reqid) == 1.0
+
+        sleep_try(0.2, 6.0, assert_done)
 
     def test_flock_kill_container(self, redis, pool, docker_client):
         assert redis.exists('p:test-pool:rq:' + self.reqid)
 
-        docker_client.containers.get(self.container['id']).kill()
+        try:
+            docker_client.containers.get(self.container['id']).kill()
+        except:
+            pass
 
         def assert_done():
             assert not redis.exists('p:test-pool:rq:' + self.reqid)

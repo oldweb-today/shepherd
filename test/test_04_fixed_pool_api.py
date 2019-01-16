@@ -18,7 +18,10 @@ class TestFixedPoolApi:
 
     def remove_next(self, docker_client):
         cid = self.ids.pop()
-        docker_client.containers.get(cid).kill()
+        try:
+            docker_client.containers.get(cid).kill()
+        except:
+            pass
 
     def start(self, reqid):
         res = self.client.post('/api/start_flock/' + reqid)

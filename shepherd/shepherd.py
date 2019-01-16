@@ -597,10 +597,12 @@ class Shepherd(object):
                     if self.is_valid_flock(reqid):
                         continue
 
+                    print('Invalid Flock: ' + reqid)
+
                     reqids.add(reqid)
 
                     short_id = self._remove_container(container)
-                    print('Removed untracked container: ' + str(short_id))
+                    print('Removed untracked container from flock {0}: {1}'.format(reqid, short_id))
 
                 # remove volumes + reqid
                 for reqid in reqids:
