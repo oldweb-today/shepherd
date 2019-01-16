@@ -415,11 +415,6 @@ class Shepherd(object):
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
 
-        if not keep_reqid:
-            flock_req.delete(self.redis)
-        else:
-            flock_req.stop(self.redis)
-
         try:
             network = self.get_network(flock_req)
         except:
@@ -458,6 +453,13 @@ class Shepherd(object):
             self.remove_flock_volumes(flock_req)
         except:
             pass
+
+        # delete flock after docker removal is finished to avoid race condition
+        # with 'untracked' container removal
+        if not keep_reqid:
+            flock_req.delete(self.redis)
+        else:
+            flock_req.stop(self.redis)
 
         return {'success': True}
 
