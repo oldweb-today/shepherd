@@ -38,7 +38,7 @@ class TestFixedPoolApi:
     def do_req_and_start(self, **params):
         res = self.do_req(params)
         if 'error' in res:
-            return res
+            return res, None
 
         reqid = res['reqid']
         res = self.client.post('/api/start_flock/' + reqid)
