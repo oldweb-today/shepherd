@@ -50,6 +50,8 @@ class Validator():
             return self.make_response({'error': 'no_such_pool', 'pool': str(ns)}, 400)
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return self.make_response({'error': str(e)}, 400)
 
         if self.resp_schema:
