@@ -10,7 +10,7 @@ from utils import sleep_try
 @pytest.mark.usefixtures('client_class', 'docker_client')
 class TestCleanup(object):
     def _count_containers(self, docker_client, shepherd):
-        return len(docker_client.containers.list(filters={'label': shepherd.reqid_label}))
+        return len(docker_client.containers.list(filters={'label': shepherd.reqid_label}, ignore_removed=True))
 
     def _count_volumes(self, docker_client, shepherd):
         return len(docker_client.volumes.list(filters={'label': shepherd.reqid_label}))
