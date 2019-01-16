@@ -41,6 +41,7 @@ class TestFixedPoolApi:
     def do_req_and_start(self, **params):
         res = self.do_req(params)
         if 'error' in res:
+            print(res)
             return res, None
 
         reqid = res['reqid']
