@@ -47,9 +47,20 @@ class Shepherd(object):
 
         self.reqid_label = reqid_label or self.SHEP_REQID_LABEL
 
-        self.untracked_check_time = untracked_check_time or self.UNTRACKED_CHECK_TIME
+        self.untracked_check_time = 0
+        self.start_cleanup_loop(untracked_check_time)
 
+    def start_cleanup_loop(self, untracked_check_time):
         if self.untracked_check_time > 0:
+            # already started
+            return
+
+        if untracked_check_time is None:
+            untracked_check_time = self.UNTRACKED_CHECK_TIME
+
+        self.untracked_check_time = untracked_check_time
+
+        if untracked_check_time > 0:
             gevent.spawn(self.untracked_check_loop)
 
     def load_flocks(self, flocks_file_or_dir):
@@ -584,7 +595,7 @@ class Shepherd(object):
 
         filters = {'label': self.reqid_label}
 
-        while True:
+        while self.untracked_check_time > 0:
             try:
                 all_containers = self.docker.containers.list(all=False,
                                                              filters=filters,

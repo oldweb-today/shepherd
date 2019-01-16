@@ -7,7 +7,7 @@ from shepherd.wsgi import create_app
 from utils import sleep_try
 
 
-@pytest.mark.usefixtures('client_class', 'docker_client')
+@pytest.mark.usefixtures('client_class', 'docker_client', 'shepherd')
 class TestCleanup(object):
     def _count_containers(self, docker_client, shepherd):
         return len(docker_client.containers.list(filters={'label': shepherd.reqid_label}, ignore_removed=True))
@@ -17,6 +17,11 @@ class TestCleanup(object):
 
     def _count_networks(self, docker_client, shepherd):
         return len(docker_client.networks.list(filters={'label': shepherd.network_pool.network_label}))
+
+    def test_start_loop(self, shepherd):
+        assert shepherd.untracked_check_time == 0
+        shepherd.start_cleanup_loop(2.0)
+        assert shepherd.untracked_check_time == 2.0
 
     def test_ensure_flock_stop(self, docker_client):
         res = self.client.post('/api/request_flock/test_b')

@@ -146,7 +146,7 @@ class TestPersistPoolApi:
         while len(self.reqids) > 0:
             remove = self.reqids.pop()
             self.stop(remove)
-            time.sleep(0.2)
+            #time.sleep(0.2)
 
         def assert_done():
             assert redis.scard('p:persist-pool:f') == 0
@@ -157,5 +157,5 @@ class TestPersistPoolApi:
 
             assert persist_pool.reqid_starts == persist_pool.reqid_stops
 
-        sleep_try(0.2, 20.0, assert_done)
+        sleep_try(0.2, 25.0, assert_done)
 

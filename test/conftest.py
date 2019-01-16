@@ -76,7 +76,7 @@ def shepherd(redis):
                     reqid_label=TEST_REQID_LABEL,
                     network_templ=NETWORKS_NAME,
                     network_label=TEST_NETWORK_LABEL,
-                    untracked_check_time=2.0)
+                    untracked_check_time=0)
 
     shep.load_flocks(TEST_FLOCKS)
     return shep
