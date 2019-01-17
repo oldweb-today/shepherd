@@ -204,14 +204,13 @@ class FixedSizePool(LaunchAllPool):
 
         res = super(FixedSizePool, self).start(reqid, environ=environ)
 
-        if 'error' in res:
-            self.remove_reqid(reqid)
+        self.remove_queued(reqid)
 
         return res
 
     def stop(self, reqid, **kwargs):
         super(FixedSizePool, self).stop(reqid, **kwargs)
-        self.remove_reqid(reqid)
+        self.remove_queued(reqid)
 
     def get_queue_pos(self, reqid):
         self.ensure_number(reqid)
@@ -232,7 +231,6 @@ class FixedSizePool(LaunchAllPool):
                 pos = self.redis.zrank(self.q_set, reqid)
 
         if pos < num_avail:
-            self.remove_reqid(reqid)
             return -1
 
         return pos
@@ -248,7 +246,7 @@ class FixedSizePool(LaunchAllPool):
             self.redis.zadd(self.q_set, {reqid: number})
             self.redis.set(self.reqid_to_number + reqid, number, ex=self.number_ttl)
 
-    def remove_reqid(self, reqid):
+    def remove_queued(self, reqid):
         self.redis.zrem(self.q_set, reqid)
         self.redis.delete(self.reqid_to_number + reqid)
 
