@@ -160,15 +160,15 @@ class LaunchAllPool(object):
 
 # ============================================================================
 class FixedSizePool(LaunchAllPool):
-    NOW_SERVING = 'now_serving'
-
     NUMBER_TTL = 180
+
+    MAX_REMOVE_SWEEP = 10
 
     NEXT = 'next'
 
     REQID_TO_NUMBER = 'p:{id}:r2n:'
 
-    NUMBER_TO_REQID = 'p:{id}:n2r:'
+    Q_SET = 'p:{id}:q'
 
     def __init__(self, *args, **kwargs):
         super(FixedSizePool, self).__init__(*args, **kwargs)
@@ -180,10 +180,9 @@ class FixedSizePool(LaunchAllPool):
 
         self.redis.hmset(self.pool_key, data)
 
-        #self.redis.hsetnx(self.pool_key, self.NOW_SERVING, '1')
-
         self.reqid_to_number = self.REQID_TO_NUMBER.format(id=self.name)
-        self.number_to_reqid = self.NUMBER_TO_REQID.format(id=self.name)
+
+        self.q_set = self.Q_SET.format(id=self.name)
 
         self.number_ttl = int(kwargs.get('number_ttl', self.NUMBER_TTL))
 
@@ -191,7 +190,7 @@ class FixedSizePool(LaunchAllPool):
         res = super(FixedSizePool, self).request(flock_name, req_opts)
 
         if 'reqid' in res:
-            number = self.get_number(res['reqid'])
+            self.ensure_number(res['reqid'])
 
         return res
 
@@ -206,30 +205,34 @@ class FixedSizePool(LaunchAllPool):
         res = super(FixedSizePool, self).start(reqid, environ=environ)
 
         if 'error' in res:
-            self.remove_request(reqid)
+            self.remove_reqid(reqid)
 
         return res
 
+    def stop(self, reqid, **kwargs):
+        super(FixedSizePool, self).stop(reqid, **kwargs)
+        self.remove_reqid(reqid)
+
     def get_queue_pos(self, reqid):
-        number = self.get_number(reqid)
-        now_serving = int(self.redis.hget(self.pool_key, self.NOW_SERVING) or 1)
+        self.ensure_number(reqid)
+        pos = self.redis.zrank(self.q_set, reqid)
+        num_avail = self.num_avail()
 
-        # if missed our number, get new one
-        if number < now_serving:
-            number = self.get_number(reqid, force_new=True)
+        # limit removal to MAX_REMOVE_SWEEP to limit processing
+        if pos >= num_avail and pos > 1:
+            max_remove = min(self.MAX_REMOVE_SWEEP, pos)
+            reqids = self.redis.zrange(self.q_set, 0, max_remove)
+            qn_keys = self.redis.mget([self.reqid_to_number + rq for rq in reqids])
+            rem_keys = [rq for res, rq in zip(qn_keys, reqids)
+                        if not res]
 
-        else:
-            now_serving = self.incr_now_serving(now_serving, number)
+            # keys to remove from zset queue
+            if rem_keys:
+                res = self.redis.zrem(self.q_set, *rem_keys)
+                pos = self.redis.zrank(self.q_set, reqid)
 
-        # pos in the queue
-        pos = number - now_serving
-
-        if pos < self.num_avail():
-            self.remove_request(reqid, number)
-            if pos == 0:
-                max_number = int(self.redis.hget(self.pool_key, self.NEXT))
-                self.incr_now_serving(now_serving, max_number)
-
+        if pos < num_avail:
+            self.remove_reqid(reqid)
             return -1
 
         return pos
@@ -238,40 +241,16 @@ class FixedSizePool(LaunchAllPool):
         max_size = self.redis.hget(self.pool_key, 'max_size')
         return int(max_size) - self.curr_size()
 
-    def incr_now_serving(self, now_serving, number):
-        # if not serving current number, check any expired numbers
-        while now_serving < number:
-            # if not expired, stop there
-            if self.redis.get(self.number_to_reqid + str(now_serving)) is not None:
-                break
-
-            now_serving = self.redis.hincrby(self.pool_key, self.NOW_SERVING, 1)
-
-        return now_serving
-
-    def get_number(self, reqid, force_new=False):
-        number = None
-
-        if not force_new:
-            number = self.redis.get(self.reqid_to_number + reqid)
-
+    def ensure_number(self, reqid):
+        number = self.redis.get(self.reqid_to_number + reqid)
         if number is None:
             number = self.redis.hincrby(self.pool_key, self.NEXT, 1)
-        else:
-            number = int(number)
+            self.redis.zadd(self.q_set, number, reqid)
+            self.redis.set(self.reqid_to_number + reqid, number, ex=self.number_ttl)
 
-        self.redis.set(self.reqid_to_number + reqid, str(number), ex=self.number_ttl)
-        self.redis.set(self.number_to_reqid + str(number), reqid, ex=self.number_ttl)
-        return number
-
-    def remove_request(self, reqid, number=None):
-        if number is None:
-            number = self.redis.get(self.reqid_to_number + reqid)
-
+    def remove_reqid(self, reqid):
+        self.redis.zrem(self.q_set, reqid)
         self.redis.delete(self.reqid_to_number + reqid)
-
-        if number is not None:
-            self.redis.delete(self.number_to_reqid + str(number))
 
 
 # ============================================================================
