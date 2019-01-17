@@ -245,7 +245,7 @@ class FixedSizePool(LaunchAllPool):
         number = self.redis.get(self.reqid_to_number + reqid)
         if number is None:
             number = self.redis.hincrby(self.pool_key, self.NEXT, 1)
-            self.redis.zadd(self.q_set, number, reqid)
+            self.redis.zadd(self.q_set, {reqid: number})
             self.redis.set(self.reqid_to_number + reqid, number, ex=self.number_ttl)
 
     def remove_reqid(self, reqid):
