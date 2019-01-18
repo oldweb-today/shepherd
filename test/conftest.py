@@ -97,7 +97,7 @@ def fixed_pool(redis, shepherd):
                          duration=60.0,
                          max_size=3,
                          expire_check=0.3,
-                         number_ttl=25.0)
+                         wait_ping_ttl=25.0)
 
     yield pool
 

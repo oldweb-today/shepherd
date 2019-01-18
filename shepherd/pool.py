@@ -160,13 +160,13 @@ class LaunchAllPool(object):
 
 # ============================================================================
 class FixedSizePool(LaunchAllPool):
-    NUMBER_TTL = 180
+    WAIT_PING_TTL = 10
 
     MAX_REMOVE_SWEEP = 10
 
     NEXT = 'next'
 
-    REQID_WAIT = 'p:{id}:r2n:'
+    REQID_WAIT = 'p:{id}:r:'
 
     REQ_KEY = 'req:'
 
@@ -186,7 +186,7 @@ class FixedSizePool(LaunchAllPool):
 
         self.q_set = self.Q_SET.format(id=self.name)
 
-        self.number_ttl = int(kwargs.get('number_ttl', self.NUMBER_TTL))
+        self.wait_ping_ttl = int(kwargs.get('wait_ping_ttl', self.WAIT_PING_TTL))
 
     def request(self, flock_name, req_opts):
         res = super(FixedSizePool, self).request(flock_name, req_opts)
@@ -219,6 +219,8 @@ class FixedSizePool(LaunchAllPool):
         pos = self.redis.zrank(self.q_set, reqid)
         num_avail = self.num_avail()
 
+        print('POS {0} of {1}'.format(pos + 1, num_avail))
+
         # limit removal to MAX_REMOVE_SWEEP to limit processing
         if pos >= num_avail and pos > 1:
             max_remove = min(self.MAX_REMOVE_SWEEP, pos)
@@ -229,12 +231,15 @@ class FixedSizePool(LaunchAllPool):
 
             # keys to remove from zset queue
             if rem_keys:
+                print('REMOVING', rem_keys)
                 res = self.redis.zrem(self.q_set, *rem_keys)
                 pos = self.redis.zrank(self.q_set, reqid)
 
         if pos < num_avail:
+            print('LAUNCH {0} {1}'.format(pos + 1, reqid))
             return -1
 
+        print('QUEUED AT {0} {1}', pos + 1, reqid)
         return pos
 
     def num_avail(self):
@@ -246,10 +251,10 @@ class FixedSizePool(LaunchAllPool):
             next_number = self.redis.hincrby(self.pool_key, self.NEXT, 1)
             self.redis.zadd(self.q_set, {reqid: next_number})
 
-        self.redis.set(self.reqid_wait + reqid, '1', ex=self.number_ttl)
+        self.redis.set(self.reqid_wait + reqid, '1', ex=self.wait_ping_ttl)
 
         # also extend time of main req:<id> key
-        self.redis.expire(self.REQ_KEY + reqid, self.number_ttl)
+        self.redis.expire(self.REQ_KEY + reqid, self.wait_ping_ttl)
 
     def remove_queued(self, reqid):
         self.redis.zrem(self.q_set, reqid)

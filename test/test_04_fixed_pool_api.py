@@ -49,7 +49,7 @@ class TestFixedPoolApi:
         return data, reqid
 
     def delete_reqid(self, redis, reqid):
-        redis.delete('p:fixed-pool:r2n:' + reqid)
+        redis.delete('p:fixed-pool:r:' + reqid)
 
     def test_launch_3_requests_no_queue(self, redis):
         for x in range(1, 4):
@@ -61,8 +61,6 @@ class TestFixedPoolApi:
             # duplicate request get same response
             new_res = self.client.post('/api/start_flock/' + reqid)
             assert res == new_res.json
-
-            #assert redis.get('p:fixed-pool:r2n:{0}'.format(reqid)) == str(x)
 
     def test_pool_full_queue_requests(self, redis):
         for x in range(0, 10):
