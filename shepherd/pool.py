@@ -244,7 +244,8 @@ class FixedSizePool(LaunchAllPool):
         if number is None:
             number = self.redis.hincrby(self.pool_key, self.NEXT, 1)
             self.redis.zadd(self.q_set, {reqid: number})
-            self.redis.set(self.reqid_to_number + reqid, number, ex=self.number_ttl)
+
+        self.redis.set(self.reqid_to_number + reqid, number, ex=self.number_ttl)
 
     def remove_queued(self, reqid):
         self.redis.zrem(self.q_set, reqid)
