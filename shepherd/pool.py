@@ -166,7 +166,9 @@ class FixedSizePool(LaunchAllPool):
 
     NEXT = 'next'
 
-    REQID_TO_NUMBER = 'p:{id}:r2n:'
+    REQID_WAIT = 'p:{id}:r2n:'
+
+    REQ_KEY = 'req:'
 
     Q_SET = 'p:{id}:q'
 
@@ -180,7 +182,7 @@ class FixedSizePool(LaunchAllPool):
 
         self.redis.hmset(self.pool_key, data)
 
-        self.reqid_to_number = self.REQID_TO_NUMBER.format(id=self.name)
+        self.reqid_wait = self.REQID_WAIT.format(id=self.name)
 
         self.q_set = self.Q_SET.format(id=self.name)
 
@@ -190,7 +192,7 @@ class FixedSizePool(LaunchAllPool):
         res = super(FixedSizePool, self).request(flock_name, req_opts)
 
         if 'reqid' in res:
-            self.ensure_number(res['reqid'])
+            self.ensure_queued(res['reqid'])
 
         return res
 
@@ -213,7 +215,7 @@ class FixedSizePool(LaunchAllPool):
         self.remove_queued(reqid)
 
     def get_queue_pos(self, reqid):
-        self.ensure_number(reqid)
+        self.ensure_queued(reqid)
         pos = self.redis.zrank(self.q_set, reqid)
         num_avail = self.num_avail()
 
@@ -221,7 +223,7 @@ class FixedSizePool(LaunchAllPool):
         if pos >= num_avail and pos > 1:
             max_remove = min(self.MAX_REMOVE_SWEEP, pos)
             reqids = self.redis.zrange(self.q_set, 0, max_remove)
-            qn_keys = self.redis.mget([self.reqid_to_number + rq for rq in reqids])
+            qn_keys = self.redis.mget([self.reqid_wait + rq for rq in reqids])
             rem_keys = [rq for res, rq in zip(qn_keys, reqids)
                         if not res]
 
@@ -239,17 +241,19 @@ class FixedSizePool(LaunchAllPool):
         max_size = self.redis.hget(self.pool_key, 'max_size')
         return int(max_size) - self.curr_size()
 
-    def ensure_number(self, reqid):
-        number = self.redis.get(self.reqid_to_number + reqid)
-        if number is None:
-            number = self.redis.hincrby(self.pool_key, self.NEXT, 1)
-            self.redis.zadd(self.q_set, {reqid: number})
+    def ensure_queued(self, reqid):
+        if not self.redis.get(self.reqid_wait + reqid):
+            next_number = self.redis.hincrby(self.pool_key, self.NEXT, 1)
+            self.redis.zadd(self.q_set, {reqid: next_number})
 
-        self.redis.set(self.reqid_to_number + reqid, number, ex=self.number_ttl)
+        self.redis.set(self.reqid_wait + reqid, '1', ex=self.number_ttl)
+
+        # also extend time of main req:<id> key
+        self.redis.expire(self.REQ_KEY + reqid, self.number_ttl)
 
     def remove_queued(self, reqid):
         self.redis.zrem(self.q_set, reqid)
-        self.redis.delete(self.reqid_to_number + reqid)
+        self.redis.delete(self.reqid_wait + reqid)
 
 
 # ============================================================================
