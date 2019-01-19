@@ -337,6 +337,7 @@ class Shepherd(object):
 
         environ = spec.get('environment') or {}
         if 'environ' in flock_req.data:
+            environ = environ.copy()
             environ.update(flock_req.data['environ'])
 
         cdata = api.create_container(
