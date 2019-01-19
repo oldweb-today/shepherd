@@ -669,7 +669,7 @@ class FlockRequest(object):
                     }
 
         self._copy_if_set('overrides', req_opts)
-        self._copy_if_set('environ', req_opts, default={})
+        self._copy_if_set('environ', req_opts, default=dict())
         self._copy_if_set('user_params', req_opts)
         self._copy_if_set('deferred', req_opts)
         return self

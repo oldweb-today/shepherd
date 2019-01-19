@@ -219,8 +219,6 @@ class FixedSizePool(LaunchAllPool):
         pos = self.redis.zrank(self.q_set, reqid)
         num_avail = self.num_avail()
 
-        print('POS {0} of {1}'.format(pos + 1, num_avail))
-
         # limit removal to MAX_REMOVE_SWEEP to limit processing
         if pos >= num_avail and pos > 1:
             max_remove = min(self.MAX_REMOVE_SWEEP, pos)
@@ -231,15 +229,12 @@ class FixedSizePool(LaunchAllPool):
 
             # keys to remove from zset queue
             if rem_keys:
-                print('REMOVING', rem_keys)
                 res = self.redis.zrem(self.q_set, *rem_keys)
                 pos = self.redis.zrank(self.q_set, reqid)
 
         if pos < num_avail:
-            print('LAUNCH {0} {1}'.format(pos + 1, reqid))
             return -1
 
-        print('QUEUED AT {0} {1}', pos + 1, reqid)
         return pos
 
     def num_avail(self):
