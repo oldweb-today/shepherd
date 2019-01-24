@@ -337,6 +337,7 @@ class Shepherd(object):
 
         environ = spec.get('environment') or {}
         if 'environ' in flock_req.data:
+            environ = environ.copy()
             environ.update(flock_req.data['environ'])
 
         cdata = api.create_container(
@@ -669,7 +670,7 @@ class FlockRequest(object):
                     }
 
         self._copy_if_set('overrides', req_opts)
-        self._copy_if_set('environ', req_opts, default={})
+        self._copy_if_set('environ', req_opts, default=dict())
         self._copy_if_set('user_params', req_opts)
         self._copy_if_set('deferred', req_opts)
         return self

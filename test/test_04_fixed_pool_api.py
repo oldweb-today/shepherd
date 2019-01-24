@@ -48,7 +48,10 @@ class TestFixedPoolApi:
         data = res.json or {}
         return data, reqid
 
-    def test_3_requests(self, redis):
+    def delete_reqid(self, redis, reqid):
+        redis.delete('p:fixed-pool:r:' + reqid)
+
+    def test_launch_3_requests_no_queue(self, redis):
         for x in range(1, 4):
             res, reqid = self.do_req_and_start()
             assert res['containers']['box']
@@ -59,10 +62,7 @@ class TestFixedPoolApi:
             new_res = self.client.post('/api/start_flock/' + reqid)
             assert res == new_res.json
 
-            #assert redis.get('p:fixed-pool:n2r:{0}'.format(x)) == reqid
-            #assert redis.get('p:fixed-pool:r2n:{0}'.format(reqid)) == str(x)
-
-    def test_pool_full_request(self, redis):
+    def test_pool_full_queue_requests(self, redis):
         for x in range(0, 10):
             res, reqid = self.queue_req()
             assert res['queue'] == x
@@ -85,7 +85,18 @@ class TestFixedPoolApi:
         res = self.client.post('/api/start_flock/' + self.pending[1])
         assert res.json['queue'] == 0
 
+        self.pending.pop(0)
+
     def test_expire_queue_next_out_of_order(self, redis, docker_client):
+        res = self.start(self.pending[0])
+        assert res['queue'] == 0
+
+        res = self.start(self.pending[1])
+        assert res['queue'] == 1
+
+        res = self.start(self.pending[2])
+        assert res['queue'] == 2
+
         self.remove_next(docker_client)
         self.remove_next(docker_client)
 
@@ -94,46 +105,64 @@ class TestFixedPoolApi:
 
         sleep_try(0.2, 6.0, assert_done)
 
-        res = self.start(self.pending[4])
-        assert res['queue'] == 3
-
         res = self.start(self.pending[2])
-        assert res['containers']
-
-        res = self.start(self.pending[4])
-        assert res['queue'] == 3
+        assert res['queue'] == 2
 
         res = self.start(self.pending[1])
         assert res['containers']
 
-        res = self.start(self.pending[4])
+        res = self.start(self.pending[2])
         assert res['queue'] == 1
 
         res = self.start(self.pending[3])
+        assert res['queue'] == 2
+
+        res = self.start(self.pending[0])
+        assert res['containers']
+
+        res = self.start(self.pending[2])
         assert res['queue'] == 0
 
+        res = self.start(self.pending[3])
+        assert res['queue'] == 1
+
+        self.pending.pop(0)
+        self.pending.pop(0)
+
     def test_expire_unused(self, redis, fixed_pool):
-        res = self.start(self.pending[6])
+        def assert_done():
+            assert redis.scard('p:fixed-pool:f') == 3
+
+        sleep_try(0.2, 6.0, assert_done)
+
+        assert redis.hget('p:fixed-pool:i', 'max_size') == '3'
+
+        res = self.start(self.pending[3])
         assert res['queue'] == 3
 
         res, reqid = self.queue_req()
         assert res['queue'] == 7
 
-        # simulate expiry
-        fixed_pool.remove_request(self.pending[3])
-        fixed_pool.remove_request(self.pending[4])
-        fixed_pool.remove_request(self.pending[5])
-        fixed_pool.remove_request(self.pending[6])
+        assert reqid == self.pending[7]
 
-        res = self.start(reqid)
-        assert res['queue'] == 3
+        # simulate delete
+        self.delete_reqid(redis, self.pending[0])
+        self.delete_reqid(redis, self.pending[1])
+        self.delete_reqid(redis, self.pending[2])
+        self.delete_reqid(redis, self.pending[4])
 
-        res = self.start(self.pending[7])
+        # removed expired reqids
+        res = self.start(self.pending[3])
         assert res['queue'] == 0
 
-        res = self.start(self.pending[6])
+        res = self.start(self.pending[5])
+        assert res['queue'] == 1
+
+        res = self.start(self.pending[7])
+        assert res['queue'] == 3
+
+        # get new number
+        res = self.start(self.pending[0])
         assert res['queue'] == 4
 
-        res = self.start(self.pending[3])
-        assert res['queue'] == 5
 
