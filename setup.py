@@ -31,6 +31,7 @@ setup(
     license='Apache 2.0',
     packages=find_packages(exclude=['test']),
     long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
     provides=[
         'shepherd',
         ],
