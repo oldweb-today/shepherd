@@ -355,7 +355,7 @@ class PersistentPool(LaunchAllPool):
         if reqid:
             self.redis.srem(self.pool_wait_set, reqid)
 
-        logger.debug('Next Flock: ' + reqid)
+        logger.debug('Next Flock: ' + str(reqid))
         return reqid
 
     def _remove_wait(self, reqid):
@@ -433,6 +433,8 @@ class PersistentPool(LaunchAllPool):
                                                         labels=self.labels,
                                                         network_pool=self.network_pool,
                                                         pausable=True)
+                    elif 'error' in res:
+                        logger.debug('Error: ' + str(res))
 
                 assert 'error' not in res
 
