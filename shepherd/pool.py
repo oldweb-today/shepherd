@@ -2,6 +2,10 @@ import gevent
 import traceback
 from shepherd.network_pool import CachedNetworkPool
 
+import logging
+
+logger = logging.getLogger('shepherd.pool')
+
 
 # ============================================================================
 class LaunchAllPool(object):
@@ -56,7 +60,8 @@ class LaunchAllPool(object):
     def _mark_wait_duration(self, reqid, value=1):
         self.redis.set(self.req_key + reqid, value, ex=self.duration)
 
-    def _mark_stopped(self, reqid):
+    def _mark_expired(self, reqid):
+        logger.debug('Mark Expired: ' + reqid)
         self.redis.delete(self.req_key + reqid)
 
     def start_deferred_container(self, reqid, image_name):
@@ -85,11 +90,12 @@ class LaunchAllPool(object):
         if 'error' not in res:
             self.remove_running(reqid)
 
-            self._mark_stopped(reqid)
+            self._mark_expired(reqid)
 
         return res
 
     def pause(self, reqid):
+        logger.info('Expired: ' + reqid)
         return self.stop(reqid)
 
     def add_running(self, reqid):
@@ -99,6 +105,7 @@ class LaunchAllPool(object):
         return self.redis.sismember(self.flocks_key, reqid)
 
     def remove_running(self, reqid):
+        logger.debug('Stop Running: ' + reqid)
         return self.redis.srem(self.flocks_key, reqid)
 
     def curr_size(self):
@@ -111,7 +118,7 @@ class LaunchAllPool(object):
                    'type': 'container'
                   }
 
-        print('Event Loop Started')
+        logger.info('Event Loop Started')
 
         for event in self.api.events(decode=True,
                                      filters=filters):
@@ -129,21 +136,20 @@ class LaunchAllPool(object):
                     self.handle_start_event(reqid, event, attrs)
 
             except Exception as e:
-                print(e)
+                logger.warn(e)
 
     def handle_die_event(self, reqid, event, attrs):
-        self._mark_stopped(reqid)
+        self._mark_expired(reqid)
 
     def handle_start_event(self, reqid, event, attrs):
         pass
 
     def expire_loop(self):
-        print('Expire Loop Started')
+        logger.info('Expire Loop Started')
         while self.running:
             for reqid in self.redis.smembers(self.flocks_key):
                 key = self.req_key + reqid
                 if not self.redis.exists(key):
-                    print('Expired: ' + reqid)
                     self.pause(reqid)
 
             gevent.sleep(self.expire_check)
@@ -289,7 +295,7 @@ class PersistentPool(LaunchAllPool):
 
         # if 'clean exit', then stop entire flock, don't reschedule
         if attrs['exitCode'] == '0' and attrs.get(self.shepherd.SHEP_DEFERRED_LABEL) != '1':
-            #print('Persistent Flock Fully Finished: ' + reqid)
+            logger.debug('Flock Finished Successfully: ' +  reqid)
             self.stop(reqid)
 
     def num_avail(self):
@@ -331,6 +337,7 @@ class PersistentPool(LaunchAllPool):
         if reqid:
             self.redis.srem(self.pool_wait_set, reqid)
 
+        logger.debug('Next Flock: ' + str(reqid))
         return reqid
 
     def _remove_wait(self, reqid):
@@ -345,6 +352,7 @@ class PersistentPool(LaunchAllPool):
             return -1
 
     def pause(self, reqid):
+        logger.info('Pausing: ' + reqid)
         next_reqid = self._pop_wait()
 
         #if no next key, extend this for same duration
@@ -353,6 +361,7 @@ class PersistentPool(LaunchAllPool):
                 self.remove_running(reqid)
 
             elif self.is_running(reqid):
+                logger.debug('Continue Running: ' + reqid)
                 self._mark_wait_duration(reqid)
 
             return {'success': True}
@@ -360,19 +369,25 @@ class PersistentPool(LaunchAllPool):
         else:
             self.remove_running(reqid)
 
-            self._mark_stopped(reqid)
+            self._mark_expired(reqid)
 
             if not self.stop_on_pause:
+                logger.debug('Stopping Flock: {0} with Grace Time {1}'.format(reqid, self.grace_time))
                 pause_res = self.shepherd.stop_flock(reqid,
                                                      network_pool=self.network_pool,
                                                      keep_reqid=True,
                                                      grace_time=self.grace_time)
             else:
+                logger.debug('Pausing Flock: {0} with Grace Time {1}'.format(reqid, self.grace_time))
                 pause_res = self.shepherd.pause_flock(reqid,
                                                       grace_time=self.grace_time)
 
             if 'error' not in pause_res and self._is_persist(reqid):
+                logger.debug('Adding to Wait Queue: ' + reqid)
                 self._push_wait(reqid)
+
+            if 'error' in  pause_res:
+                logger.debug('Error: ' +  str(pause_res))
 
             self.resume(next_reqid)
 
@@ -382,14 +397,17 @@ class PersistentPool(LaunchAllPool):
         res = None
         while reqid:
             try:
+                logger.debug('Resuming: ' + reqid)
                 assert self._is_persist(reqid)
 
                 if not self.stop_on_pause:
+                    logger.debug('Restarting')
                     res = self.shepherd.start_flock(reqid,
                                                     labels=self.labels,
                                                     network_pool=self.network_pool)
 
                 else:
+                    logger.debug('Unpausing')
                     res = self.shepherd.resume_flock(reqid)
 
                     if res.get('error') == 'not_paused' and res.get('state') == 'new':
@@ -397,6 +415,8 @@ class PersistentPool(LaunchAllPool):
                                                         labels=self.labels,
                                                         network_pool=self.network_pool,
                                                         pausable=True)
+                    elif 'error' in res:
+                        logger.debug('Error: ' + str(res))
 
                 assert 'error' not in res
 

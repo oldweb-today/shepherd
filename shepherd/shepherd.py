@@ -412,15 +412,21 @@ class Shepherd(object):
         ancestor = self.full_tag(ancestor)
         try:
             image = self.docker.images.get(name)
+            base_image = self.docker.images.get(ancestor)
         except docker.errors.ImageNotFound:
             return False
 
-        history = image.history()
-        for entry in history:
-            if entry.get('Tags') and ancestor in entry['Tags']:
-                return True
+        base_layers = base_image.attrs['RootFS']['Layers']
+        layers = image.attrs['RootFS']['Layers']
 
-        return False
+        # layers should start with base_layers if base is ancestor
+        # of image
+
+        # can't be ancestor if has more layers in base
+        if len(base_layers) > len(layers):
+            return False
+
+        return layers[:len(base_layers)] == base_layers
 
     def stop_flock(self, reqid, keep_reqid=False, grace_time=None, network_pool=None):
         flock_req = FlockRequest(reqid)
