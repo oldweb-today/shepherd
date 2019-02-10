@@ -147,12 +147,16 @@ class LaunchAllPool(object):
     def expire_loop(self):
         logger.info('Expire Loop Started')
         while self.running:
-            for reqid in self.redis.smembers(self.flocks_key):
-                key = self.req_key + reqid
-                if not self.redis.exists(key):
-                    self.pause(reqid)
+            try:
+                for reqid in self.redis.smembers(self.flocks_key):
+                    key = self.req_key + reqid
+                    if not self.redis.exists(key):
+                        self.pause(reqid)
 
-            gevent.sleep(self.expire_check)
+                gevent.sleep(self.expire_check)
+
+            except:
+                traceback.print_exc()
 
     def shutdown(self):
         self.running = False
