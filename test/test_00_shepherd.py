@@ -94,6 +94,8 @@ class TestShepherd(object):
         # added at start
         assert 'ANOTHER=VALUE' in env
 
+        assert redis.exists(Shepherd.R_TO_U_KEY.format(self.reqid))
+
         # verify ports on busybox set!
         assert set(containers['busybox']['ports'].keys()) == {'port_a', 'port_b'}
         for value in containers['busybox']['ports'].values():
@@ -164,6 +166,8 @@ class TestShepherd(object):
         assert not redis.exists('req:' + self.reqid)
 
         assert redis.keys(Shepherd.USER_PARAMS_KEY.format('*')) == []
+
+        assert not redis.exists(Shepherd.R_TO_U_KEY.format(self.reqid))
 
     def test_volumes(self, shepherd, docker_client):
         res = shepherd.request_flock('test_vol')
