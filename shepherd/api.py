@@ -1,5 +1,6 @@
 from shepherd.schema import FlockIdSchema, FlockRequestOptsSchema, GenericResponseSchema
-from shepherd.schema import LaunchResponseSchema, LaunchContainerSchema
+from shepherd.schema import LaunchResponseSchema, LaunchContainerSchema, FlockData
+from shepherd.shepherd import FlockRequest
 
 from flask import Response, request
 
@@ -147,6 +148,38 @@ def init_routes(app):
                     schema: GenericResponseSchema
         """
         return app.get_pool(pool).start_deferred_container(reqid, name)
+
+    @app.route(['/api/flock/<reqid>', '/api/<pool>/flock/<reqid>'],
+               methods=['GET'],
+               resp_schema=FlockData)
+    def get_flock(reqid):
+        """ Get information of a running flock request
+        ---
+        get:
+            summary: Get information about a running flock
+            parameters:
+                - in: path
+                  name: reqid
+                  schema: {type: string}
+                  description: a unique request id that was created from flock request
+
+            responses:
+                200:
+                    description: Flock request info
+                    schema: GenericResponseSchema
+
+                404:
+                    description: Flock request not found
+                    schema: GenericResponseSchema
+        """
+
+        flock_req = FlockRequest(reqid)
+        if not flock_req.load(app.shepherd.redis):
+            return {'error': 'invalid_reqid'}
+
+        import pprint
+        pprint.pprint(flock_req.data)
+        return flock_req.data
 
     @app.route('/api', methods=['GET'])
     def print_api():

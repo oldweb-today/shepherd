@@ -25,7 +25,6 @@ class Shepherd(object):
 
     USER_PARAMS_KEY = 'up:{0}'
     C_TO_U_KEY = 'cu:{0}'
-    R_TO_U_KEY = 'ru:{0}'
 
     SHEP_REQID_LABEL = 'owt.shepherd.reqid'
 
@@ -387,7 +386,6 @@ class Shepherd(object):
             up_key = self.USER_PARAMS_KEY.format(info['ip'])
             self.redis.hmset(up_key, flock_req.data['user_params'])
             self.redis.set(self.C_TO_U_KEY.format(info['id']), up_key)
-            self.redis.sadd(self.R_TO_U_KEY.format(flock_req.reqid), up_key)
 
         info['environ'] = environ
 
@@ -475,7 +473,6 @@ class Shepherd(object):
         # with 'untracked' container removal
         if not keep_reqid:
             flock_req.delete(self.redis)
-            self.redis.delete(self.R_TO_U_KEY.format(reqid))
         else:
             flock_req.stop(self.redis)
 
