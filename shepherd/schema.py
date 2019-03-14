@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields, pprint
+from marshmallow import Schema, fields
 
 def string_dict():
     return fields.Dict(keys=fields.String())
@@ -56,4 +56,9 @@ class LaunchResponseSchema(Schema):
     network = fields.String()
     containers = fields.Dict(keys=fields.String(), values=fields.Nested(LaunchContainerSchema))
 
+class FlockRequestDataSchema(Schema):
+    user_params = string_dict()
+    id = fields.String()
+    environ = string_dict()
+    image_list = fields.List(fields.String())
 

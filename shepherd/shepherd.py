@@ -13,6 +13,11 @@ from shepherd.network_pool import NetworkPool
 
 import gevent
 
+import logging
+
+logger = logging.getLogger('shepherd')
+
+
 
 # ============================================================================
 class Shepherd(object):
@@ -450,22 +455,14 @@ class Shepherd(object):
             except:
                 pass
 
-            try:
-                if grace_time:
-                    self._do_graceful_stop(container, grace_time)
-                else:
-                    container.kill()
-            except docker.errors.APIError as e:
-                pass
-
-            self._remove_container(container)
+            self._remove_container(container, grace_time=grace_time)
 
         if network:
             try:
                 network_pool = network_pool or self.network_pool
                 network_pool.remove_network(network)
             except Exception as e:
-                pass
+                logger.error(str(e))
 
         try:
             self.remove_flock_volumes(flock_req)
@@ -481,9 +478,20 @@ class Shepherd(object):
 
         return {'success': True}
 
-    def _remove_container(self, container, v=False):
+    def _remove_container(self, container, v=False, grace_time=0):
+        short_id = self.short_id(container)
+
         try:
-            short_id = self.short_id(container)
+            if grace_time:
+                logger.debug('Graceful Stop: ' + short_id)
+                self._do_graceful_stop(container, grace_time)
+            else:
+                logger.debug('Kill Container: ' + short_id)
+                container.kill()
+        except docker.errors.APIError as e:
+            logger.error(str(e))
+
+        try:
             c_to_uparams = self.C_TO_U_KEY.format(short_id)
             res = self.redis.get(c_to_uparams)
             if res:
@@ -493,7 +501,8 @@ class Shepherd(object):
             container.remove(force=True, v=v)
             return short_id
 
-        except docker.errors.APIError:
+        except docker.errors.APIError as e:
+            logger.error(str(e))
             return None
 
     def _do_graceful_stop(self, container, grace_time):
@@ -501,7 +510,7 @@ class Shepherd(object):
             try:
                 container.stop(timeout=grace_time)
             except docker.errors.APIError as e:
-                pass
+                logger.error(str(e))
 
         gevent.spawn(do_stop)
 

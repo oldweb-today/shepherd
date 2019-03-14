@@ -68,6 +68,13 @@ class TestBasicApi:
         assert redis.exists('p:test-pool:rq:' + self.reqid)
         assert redis.scard('p:test-pool:f') == 1
 
+    def test_get_flock(self, pool, redis):
+        res = self.client.get('/api/flock/' + self.reqid)
+        assert res.json['user_params'] == {'a': 'b'}
+        assert res.json['environ']
+        assert res.json['image_list']
+        assert res.json['id']
+
     def test_stop_flock(self, pool, redis):
         res = self.client.post('/api/stop_flock/' + self.reqid)
         assert res.json['success'] == True
