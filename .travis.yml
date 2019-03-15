@@ -41,6 +41,7 @@ script:
   - kubectl cluster-info
   - pip install kubernetes
   - pip install coverage pytest-cov codecov
+  - eval $(minikube docker-env)
   - python setup.py test
 
 after_success:

@@ -17,7 +17,7 @@ class TestShepherd(object):
                    'another': '1'}
 
     def test_flock_setup(self, shepherd):
-        assert len(shepherd.flocks) == 6
+        assert len(shepherd.flocks) == 7
 
     def test_flock_dir_load(self, redis):
         testshep = Shepherd(redis)
