@@ -38,22 +38,21 @@ class Shepherd(object):
 
     VOLUME_TEMPL = 'vol-{name}-{reqid}'
 
-    def __init__(self, redis, network_templ=None, volume_templ=None,
-                 reqid_label=None, untracked_check_time=None, network_label=None):
+    def __init__(self, redis, **kwargs):
         self.flocks = {}
         self.docker = docker.from_env()
         self.redis = redis
 
         self.network_pool = NetworkPool(self.docker,
-                                        network_templ=network_templ,
-                                        network_label=network_label)
+                                        network_templ=kwargs.get('network_templ'),
+                                        network_label=kwargs.get('network_label'))
 
-        self.volume_templ = volume_templ or self.VOLUME_TEMPL
+        self.volume_templ = kwargs.get('volume_templ', self.VOLUME_TEMPL)
 
-        self.reqid_label = reqid_label or self.SHEP_REQID_LABEL
+        self.reqid_label = kwargs.get('reqid_label', self.SHEP_REQID_LABEL)
 
         self.untracked_check_time = 0
-        self.start_cleanup_loop(untracked_check_time)
+        self.start_cleanup_loop(kwargs.get('untracked_check_time'))
 
     def start_cleanup_loop(self, untracked_check_time):
         if self.untracked_check_time > 0:

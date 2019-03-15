@@ -89,4 +89,19 @@ containers:
     ports:
       port_a: 8234/udp
 
+---
+name: test_b_kube
+containers:
+  - name: box
+    image: test-shepherd/busybox
+    ports:
+      port-a: 8231
+
+  - name: box-2
+    image: test-shepherd/busybox
+    ports:
+      port-b: 8234
+      port-udp: 8200/udp
+
+
 
