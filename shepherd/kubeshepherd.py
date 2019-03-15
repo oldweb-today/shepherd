@@ -29,8 +29,11 @@ class KubeShepherd(Shepherd):
         self.job_duration = kwargs.get('job_duration')
 
         from kubernetes import client, config
-        #config.load_incluster_config()
-        config.load_kube_config()
+
+        if os.environ.get('IN_CLUSTER'):
+            config.load_incluster_config()
+        else:
+            config.load_kube_config()
 
         configuration = client.Configuration()
         api_client = client.ApiClient(configuration)
