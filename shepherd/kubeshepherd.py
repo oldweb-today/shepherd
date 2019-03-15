@@ -115,7 +115,7 @@ class KubeShepherd(Shepherd):
 
                 env_list = []
                 for n, v in environ.items():
-                    env_list.append({'name': n, 'value': v})
+                    env_list.append({'name': str(n), 'value': str(v)})
 
                 port_info = {}
 
