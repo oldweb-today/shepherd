@@ -92,13 +92,13 @@ class KubeShepherd(Shepherd):
         labels = labels or {}
         labels[self.reqid_label] = flock_req.reqid
 
+        container_infos = {}
+
         try:
             volume_binds, volumes = self.get_volumes(flock_req, flock_spec, labels)
 
             containers = []
             ports = []
-
-            container_infos = {}
 
             req_deferred = flock_req.data.get('deferred', {})
 
@@ -200,12 +200,24 @@ class KubeShepherd(Shepherd):
                 for name in info['ports']:
                     info['ports'][name] = port_res.get(name)
 
-            return {'containers': container_infos,
-                    'network': '',
-                   }
-
         except:
             traceback.print_exc()
+
+            try:
+                self.stop_flock(reqid)
+            except:
+                pass
+
+            return {'error': 'start_error',
+                    'details': traceback.format_exc()
+                   }
+
+        response = {'containers': container_infos,
+                    'network': ''
+                   }
+
+        flock_req.cache_response(response, self.redis)
+        return response
 
     def stop_flock(self, reqid, keep_reqid=False, grace_time=None, network_pool=None):
         flock_req = FlockRequest(reqid)

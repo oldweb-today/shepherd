@@ -69,6 +69,14 @@ class TestKubeApi:
         assert redis.exists('p:test-pool:rq:' + self.reqid)
         assert redis.scard('p:test-pool:f') == 1
 
+    def test_start_flock_again(self):
+        res = self.client.post('/api/start_flock/' + self.reqid,
+                               json={'environ': {'NEW': 'VALUE'}})
+
+        assert res.json['containers']['box']
+        assert res.json['containers']['box']['environ']['NEW'] == 'VALUE'
+        assert not res.json['network']
+
     def test_get_flock(self, pool, redis):
         res = self.client.get('/api/flock/' + self.reqid)
         assert res.json['user_params'] == {'a': 'b'}
