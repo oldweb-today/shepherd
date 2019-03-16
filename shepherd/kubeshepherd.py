@@ -24,6 +24,7 @@ class KubeShepherd(Shepherd):
     }
 
     def __init__(self, *args, **kwargs):
+        kwargs['untracked_check_time'] = 0
         super(KubeShepherd, self).__init__(*args, **kwargs)
 
         self.job_duration = kwargs.get('job_duration')
@@ -177,7 +178,7 @@ class KubeShepherd(Shepherd):
                 'kind': 'Service',
                 'apiVersion': 'v1',
                 'metadata': {'name': 'service-' + flock_req.reqid.lower(),
-                             self.reqid_label: flock_req.reqid},
+                             'labels': {self.reqid_label: flock_req.reqid}},
                 'spec': {
                     'type': 'NodePort',
                     'selector': {self.reqid_label: flock_req.reqid},
@@ -279,5 +280,14 @@ class KubeShepherd(Shepherd):
                    }
 
         return {'success': True}
+
+    def get_job_status(self, reqid):
+        res = shepherd.batch_api.list_namespaced_job(namespace='default',
+               label_selector=self.reqid_label + '=' + reqid)
+
+        if not res.items:
+            return None
+
+        return res.items[0].status
 
 

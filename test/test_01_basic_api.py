@@ -62,8 +62,7 @@ class TestBasicApi:
         sleep_try(0.2, 6.0, assert_done)
 
         for event in pool.start_events:
-            assert event['Action'] == 'start'
-            assert event['Actor']['Attributes'][pool.shepherd.reqid_label] == self.reqid
+            assert event == self.reqid
 
         assert redis.exists('p:test-pool:rq:' + self.reqid)
         assert redis.scard('p:test-pool:f') == 1
@@ -85,8 +84,7 @@ class TestBasicApi:
         sleep_try(0.2, 6.0, assert_done)
 
         for event in pool.stop_events:
-            assert event['Action'] == 'die'
-            assert event['Actor']['Attributes'][pool.shepherd.reqid_label] == self.reqid
+            assert event == self.reqid
 
         assert not redis.exists('p:test-pool:rq:' + self.reqid)
         assert redis.scard('p:test-pool:f') == 0

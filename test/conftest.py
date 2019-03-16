@@ -32,11 +32,10 @@ class DebugMixin(object):
         self.reqid_starts = {}
         self.reqid_stops = {}
 
-    def handle_die_event(self, reqid, event, attrs):
-        self.stop_events.append(event)
+    def handle_stop_event(self, reqid, is_success=False, labels=None):
+        self.stop_events.append(reqid)
 
         try:
-            reqid = attrs[TEST_REQID_LABEL]
             with self._lock:
                 self.reqid_stops[reqid] = self.reqid_stops.get(reqid, 0) + 1
         except:
@@ -44,8 +43,8 @@ class DebugMixin(object):
 
         super(DebugMixin, self).handle_die_event(reqid, event, attrs)
 
-    def handle_start_event(self, reqid, event, attrs):
-        self.start_events.append(event)
+    def handle_start_event(self, reqid):
+        self.start_events.append(reqid)
 
         try:
             reqid = attrs[TEST_REQID_LABEL]

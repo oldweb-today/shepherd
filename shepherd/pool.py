@@ -8,6 +8,67 @@ logger = logging.getLogger('shepherd.pool')
 
 
 # ============================================================================
+class DockerEventUpdater(object):
+    def __init__(self, shepherd, pool):
+        self.shepherd = shepherd
+        self.pool = pool
+
+        gevent.spawn(self.event_loop)
+
+    def event_loop(self):
+        pool = self.pool
+        filters = {
+                   'label': pool.POOL_NAME_LABEL + '=' + pool.name,
+                   'event': ['die', 'start'],
+                   'type': 'container'
+                  }
+
+        logger.info('Docker Event Loop Started')
+
+        for event in self.shepherd.docker.api.events(decode=True,
+                                                     filters=filters):
+            try:
+                if not pool.running:
+                    break
+
+                attrs = event['Actor']['Attributes']
+                reqid = attrs[self.shepherd.reqid_label]
+
+                if event['status'] == 'die':
+                    is_success = attrs['exitCode'] == '0'
+                    pool.handle_stop_event(reqid, is_success, attrs)
+
+                elif event['status'] == 'start':
+                    pool.handle_start_event(reqid)
+
+            except Exception as e:
+                traceback.print_exc()
+                logger.warn(e)
+
+
+# ============================================================================
+class KubeEventUpdater(object):
+    def __init__(self, shepherd, pool):
+        self.shepherd = shepherd
+        self.pool = pool
+
+    def poll_loop(self):
+        logger.info('Poll Kube Loop Started')
+        while self.pool.running:
+            try:
+                for reqid in self.pool.redis.smembers(self.pool.flocks_key):
+                    job_status = self.shepherd.get_job_status(reqid)
+                    if job_status == None or not job_status.active:
+                        pool.handle_stop_event(reqid, job_status.completed, None)
+
+                    gevent.sleep(self.pool.expire_check)
+
+            except:
+                traceback.print_exc()
+
+
+
+# ============================================================================
 class LaunchAllPool(object):
     POOL_NAME_LABEL = 'owt.shepherd.pool'
     POOL_KEY = 'p:{id}:i'
@@ -38,8 +99,6 @@ class LaunchAllPool(object):
 
         self.req_key = self.POOL_REQ.format(id=self.name)
 
-        self.api = shepherd.docker.api
-
         self.network_pool = None
 
         if network_pool_size > 0:
@@ -50,7 +109,10 @@ class LaunchAllPool(object):
 
         self.running = True
 
-        gevent.spawn(self.event_loop)
+        if self.shepherd.__class__.__name__ == 'KubeShepherd':
+            self.event_updater = KubeEventUpdater(shepherd, self)
+        else:
+            self.event_updater = DockerEventUpdater(shepherd, self)
 
         gevent.spawn(self.expire_loop)
 
@@ -111,37 +173,10 @@ class LaunchAllPool(object):
     def curr_size(self):
         return self.redis.scard(self.flocks_key)
 
-    def event_loop(self):
-        filters = {
-                   'label': self.POOL_NAME_LABEL + '=' + self.name,
-                   'event': ['die', 'start'],
-                   'type': 'container'
-                  }
-
-        logger.info('Event Loop Started')
-
-        for event in self.api.events(decode=True,
-                                     filters=filters):
-            try:
-                if not self.running:
-                    break
-
-                attrs = event['Actor']['Attributes']
-                reqid = attrs[self.shepherd.reqid_label]
-
-                if event['status'] == 'die':
-                    self.handle_die_event(reqid, event, attrs)
-
-                elif event['status'] == 'start':
-                    self.handle_start_event(reqid, event, attrs)
-
-            except Exception as e:
-                logger.warn(e)
-
-    def handle_die_event(self, reqid, event, attrs):
+    def handle_stop_event(self, reqid, is_success=False, labels=None):
         self._mark_expired(reqid)
 
-    def handle_start_event(self, reqid, event, attrs):
+    def handle_start_event(self, reqid):
         pass
 
     def expire_loop(self):
@@ -294,11 +329,11 @@ class PersistentPool(LaunchAllPool):
 
         self.stop_on_pause = kwargs.get('stop_on_pause', False)
 
-    def handle_die_event(self, reqid, event, attrs):
-        super(PersistentPool, self).handle_die_event(reqid, event, attrs)
+    def handle_stop_event(self, reqid, is_success=False, labels=None):
+        super(PersistentPool, self).handle_stop_event(reqid, is_success, labels)
 
         # if 'clean exit', then stop entire flock, don't reschedule
-        if attrs['exitCode'] == '0' and attrs.get(self.shepherd.SHEP_DEFERRED_LABEL) != '1':
+        if is_success and labels and labels.get(self.shepherd.SHEP_DEFERRED_LABEL) != '1':
             logger.debug('Flock Finished Successfully: ' +  reqid)
             self.stop(reqid)
 

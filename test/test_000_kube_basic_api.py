@@ -20,7 +20,7 @@ def shepherd(redis):
     shep = KubeShepherd(redis,
                         reqid_label=TEST_REQID_LABEL,
                         untracked_check_time=0,
-                        job_duration=12.0)
+                        job_duration=30.0)
 
     shep.load_flocks(TEST_FLOCKS)
     return shep
@@ -32,7 +32,7 @@ def app(shepherd, pool):
 
 @pytest.fixture(scope='module')
 def pool(redis, shepherd):
-    pool = LaunchAllPool('test-pool', shepherd, redis, duration=12.0, expire_check=0.3)
+    pool = LaunchAllPool('test-pool', shepherd, redis, duration=30.0, expire_check=0.3)
 
     yield pool
 
@@ -49,7 +49,7 @@ class TestKubeApi:
         assert res.json['reqid']
         TestKubeApi.reqid = res.json['reqid']
 
-    def test_start_flock(self, pool, redis):
+    def test_start_flock(self, shepherd, redis):
         res = self.client.post('/api/start_flock/' + self.reqid,
                                json={'environ': {'NEW': 'VALUE'}})
 
@@ -57,14 +57,26 @@ class TestKubeApi:
         assert res.json['containers']['box']['environ']['NEW'] == 'VALUE'
         assert not res.json['network']
 
-        #def assert_done():
-        #    assert len(pool.start_events) == 2
+        def assert_done():
+            res = shepherd.batch_api.list_namespaced_job(namespace='default',
+                   label_selector=shepherd.reqid_label + '=' + self.reqid)
 
-        #sleep_try(0.2, 6.0, assert_done)
+            assert len(res.items) == 1
+            assert res.items[0].status.active
 
-        #for event in pool.start_events:
-        #    assert event['Action'] == 'start'
-        #    assert event['Actor']['Attributes'][pool.shepherd.reqid_label] == self.reqid
+            res = shepherd.core_api.list_namespaced_pod(namespace='default',
+                   label_selector=shepherd.reqid_label + '=' + self.reqid)
+
+            assert len(res.items) == 1
+            assert res.items[0].status.phase == 'Running'
+
+            res = shepherd.core_api.list_namespaced_service(namespace='default',
+                   label_selector=shepherd.reqid_label + '=' + self.reqid)
+
+            assert len(res.items) == 1
+            assert res.items[0].status
+
+        sleep_try(0.2, 6.0, assert_done)
 
         assert redis.exists('p:test-pool:rq:' + self.reqid)
         assert redis.scard('p:test-pool:f') == 1
@@ -84,23 +96,38 @@ class TestKubeApi:
         assert res.json['image_list']
         assert res.json['id']
 
-    def test_stop_flock(self, pool, redis):
+    def test_stop_flock(self, shepherd, redis):
         time.sleep(10.0)
 
         res = self.client.post('/api/stop_flock/' + self.reqid)
         assert res.json['success'] == True
 
-        def assert_done():
-            pass
-            #assert len(pool.stop_events) == 2
+        res = shepherd.batch_api.list_namespaced_job(namespace='default',
+               label_selector=shepherd.reqid_label + '=' + self.reqid)
 
-        sleep_try(0.2, 6.0, assert_done)
-
-        #for event in pool.stop_events:
-        #    assert event['Action'] == 'die'
-        #    assert event['Actor']['Attributes'][pool.shepherd.reqid_label] == self.reqid
+        assert len(res.items) == 1
+        assert not res.items[0].status.active
 
         assert not redis.exists('p:test-pool:rq:' + self.reqid)
         assert redis.scard('p:test-pool:f') == 0
+
+    def test_verify_objects_removed(self, shepherd):
+        def assert_done():
+            res = shepherd.batch_api.list_namespaced_job(namespace='default',
+                   label_selector=shepherd.reqid_label + '=' + self.reqid)
+
+            assert len(res.items) == 0
+
+            res = shepherd.core_api.list_namespaced_pod(namespace='default',
+                   label_selector=shepherd.reqid_label + '=' + self.reqid)
+
+            assert len(res.items) == 0
+
+            res = shepherd.core_api.list_namespaced_service(namespace='default',
+                   label_selector=shepherd.reqid_label + '=' + self.reqid)
+
+            assert len(res.items) == 0
+
+        sleep_try(0.2, 60.0, assert_done)
 
 
