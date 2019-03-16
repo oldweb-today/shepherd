@@ -6,6 +6,10 @@ import json
 import os
 import time
 
+import logging
+
+logger = logging.getLogger('shepherd')
+
 
 class KubeShepherd(Shepherd):
     DEF_SEC_CONTEXT = {
@@ -295,11 +299,11 @@ class KubeShepherd(Shepherd):
         for obj in items:
             reqid = obj.metadata.labels[self.reqid_label]
             if not self.is_valid_flock(reqid):
-                logging.info('Remoeve invalid flock: ' + reqid)
+                logger.info('Remoeve invalid flock: ' + reqid)
                 reqids.add(reqid)
 
     def untracked_check_loop(self):
-        logging.info('Untracked Check Loop Started')
+        logger.info('Untracked Check Loop Started')
 
         while self.untracked_check_time > 0:
             time.sleep(self.untracked_check_time)
@@ -307,7 +311,7 @@ class KubeShepherd(Shepherd):
                 continue
 
             try:
-                logging.info('Checking untracked flocks now...')
+                logger.info('Checking untracked flocks now...')
                 reqids = set()
 
                 res = self.batch_api.list_namespaced_job(
