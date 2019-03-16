@@ -24,7 +24,8 @@ class KubeShepherd(Shepherd):
     }
 
     def __init__(self, *args, **kwargs):
-        kwargs['untracked_check_time'] = 0
+        self.batch_api = None
+
         super(KubeShepherd, self).__init__(*args, **kwargs)
 
         self.job_duration = kwargs.get('job_duration')
@@ -172,7 +173,6 @@ class KubeShepherd(Shepherd):
                 job['spec']['activeDeadlineSeconds'] = int(self.job_duration)
 
             res = self.batch_api.create_namespaced_job(body=job, namespace='default')
-            #pprint(res)
 
             service = {
                 'kind': 'Service',
@@ -187,7 +187,6 @@ class KubeShepherd(Shepherd):
             }
 
             res = self.core_api.create_namespaced_service(body=service, namespace='default')
-            #pprint(res)
 
             # fill in ports
             cluster_ip = res.spec.cluster_ip
@@ -225,20 +224,23 @@ class KubeShepherd(Shepherd):
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
 
-        res = self.batch_api.delete_namespaced_job(
-            #label_selector=self.reqid_label + '=' + flock_req.reqid,
-            name='flock-' + flock_req.reqid.lower(),
-            namespace='default',
-            body={'gracePeriodSeconds': grace_time or 0, 'propagationPolicy': 'Foreground'})
+        try:
+            res = self.batch_api.delete_namespaced_job(
+                #label_selector=self.reqid_label + '=' + flock_req.reqid,
+                name='flock-' + flock_req.reqid.lower(),
+                namespace='default',
+                body={'gracePeriodSeconds': grace_time or 0, 'propagationPolicy': 'Foreground'})
+        except Exception:
+            traceback.print_exc()
 
-        #pprint(res)
 
-        res = self.core_api.delete_namespaced_service(
-            name='service-' + flock_req.reqid.lower(),
-            namespace='default',
-            body={'gracePeriodSeconds': grace_time or 0, 'propagationPolicy': 'Foreground'})
-
-        #pprint(res)
+        try:
+            res = self.core_api.delete_namespaced_service(
+                name='service-' + flock_req.reqid.lower(),
+                namespace='default',
+                body={'gracePeriodSeconds': grace_time or 0, 'propagationPolicy': 'Foreground'})
+        except Exception:
+            traceback.print_exc()
 
         # delete flock after docker removal is finished to avoid race condition
         # with 'untracked' container removal
@@ -290,4 +292,38 @@ class KubeShepherd(Shepherd):
 
         return res.items[0].status
 
+    def _add_invalid_reqids(self, items, reqids):
+        for obj in items:
+            reqid = obj.metadata.labels[self.reqid_label]
+            if not self.is_valid_flock(reqid):
+                reqids.add(reqid)
+
+    def untracked_check_loop(self):
+        print('Untracked Container Check Loop Started')
+
+        while self.untracked_check_time > 0:
+            time.sleep(self.untracked_check_time)
+            if not self.batch_api:
+                continue
+
+            try:
+                reqids = set()
+
+                res = self.batch_api.list_namespaced_job(
+                    namespace='default',
+                    label_selector=self.reqid_label)
+
+                self._add_invalid_reqids(res.items, reqids)
+
+                res = self.core_api.list_namespaced_service(
+                    namespace='default',
+                    label_selector=self.reqid_label)
+
+                self._add_invalid_reqids(res.items, reqids)
+
+                for reqid in reqids:
+                    self.stop_flock(reqid)
+
+            except Exception:
+                traceback.print_exc()
 

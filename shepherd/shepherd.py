@@ -654,7 +654,7 @@ class Shepherd(object):
                     except:
                         pass
 
-            except:
+            except Exception:
                 traceback.print_exc()
 
             time.sleep(self.untracked_check_time)

@@ -19,7 +19,7 @@ TEST_FLOCKS = os.path.join(TEST_DIR, 'test_flocks.yaml')
 def shepherd(redis):
     shep = KubeShepherd(redis,
                         reqid_label=TEST_REQID_LABEL,
-                        untracked_check_time=0,
+                        untracked_check_time=2.0,
                         job_duration=30.0)
 
     shep.load_flocks(TEST_FLOCKS)
