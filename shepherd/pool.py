@@ -52,6 +52,8 @@ class KubeEventUpdater(object):
         self.shepherd = shepherd
         self.pool = pool
 
+        gevent.spawn(self.poll_loop)
+
     def poll_loop(self):
         logger.info('Poll Kube Loop Started')
         while self.pool.running:
@@ -61,7 +63,7 @@ class KubeEventUpdater(object):
                     if job_status == None or not job_status.active:
                         pool.handle_stop_event(reqid, job_status.completed, None)
 
-                    gevent.sleep(self.pool.expire_check)
+                gevent.sleep(self.pool.expire_check)
 
             except:
                 traceback.print_exc()

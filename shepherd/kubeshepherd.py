@@ -282,7 +282,7 @@ class KubeShepherd(Shepherd):
         return {'success': True}
 
     def get_job_status(self, reqid):
-        res = shepherd.batch_api.list_namespaced_job(namespace='default',
+        res = self.batch_api.list_namespaced_job(namespace='default',
                label_selector=self.reqid_label + '=' + reqid)
 
         if not res.items:
