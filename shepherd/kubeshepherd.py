@@ -207,7 +207,7 @@ class KubeShepherd(Shepherd):
             traceback.print_exc()
 
             try:
-                self.stop_flock(reqid)
+                self.stop_flock(reqid, force=True)
             except:
                 pass
 
@@ -222,15 +222,15 @@ class KubeShepherd(Shepherd):
         flock_req.cache_response(response, self.redis)
         return response
 
-    def stop_flock(self, reqid, keep_reqid=False, grace_time=None, network_pool=None):
+    def stop_flock(self, reqid, keep_reqid=False, grace_time=None, network_pool=None, force=False):
         flock_req = FlockRequest(reqid)
-        if not flock_req.load(self.redis):
+        if not force and not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
 
         try:
             res = self.batch_api.delete_namespaced_job(
                 #label_selector=self.reqid_label + '=' + flock_req.reqid,
-                name='flock-' + flock_req.reqid.lower(),
+                name='flock-' + reqid.lower(),
                 namespace='default',
                 body={'gracePeriodSeconds': grace_time or 0, 'propagationPolicy': 'Foreground'})
         except Exception:
@@ -239,7 +239,7 @@ class KubeShepherd(Shepherd):
 
         try:
             res = self.core_api.delete_namespaced_service(
-                name='service-' + flock_req.reqid.lower(),
+                name='service-' + reqid.lower(),
                 namespace='default',
                 body={'gracePeriodSeconds': grace_time or 0, 'propagationPolicy': 'Foreground'})
         except Exception:
@@ -299,7 +299,6 @@ class KubeShepherd(Shepherd):
         for obj in items:
             reqid = obj.metadata.labels[self.reqid_label]
             if not self.is_valid_flock(reqid):
-                logger.info('Remoeve invalid flock: ' + reqid)
                 reqids.add(reqid)
 
     def untracked_check_loop(self):
@@ -311,7 +310,6 @@ class KubeShepherd(Shepherd):
                 continue
 
             try:
-                logger.info('Checking untracked flocks now...')
                 reqids = set()
 
                 res = self.batch_api.list_namespaced_job(
@@ -327,7 +325,8 @@ class KubeShepherd(Shepherd):
                 self._add_invalid_reqids(res.items, reqids)
 
                 for reqid in reqids:
-                    self.stop_flock(reqid)
+                    logger.debug('Remove invalid flock: ' + reqid)
+                    self.stop_flock(reqid, force=True)
 
             except Exception:
                 traceback.print_exc()

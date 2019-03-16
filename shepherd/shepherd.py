@@ -432,9 +432,9 @@ class Shepherd(object):
 
         return layers[:len(base_layers)] == base_layers
 
-    def stop_flock(self, reqid, keep_reqid=False, grace_time=None, network_pool=None):
+    def stop_flock(self, reqid, keep_reqid=False, grace_time=None, network_pool=None, force=False):
         flock_req = FlockRequest(reqid)
-        if not flock_req.load(self.redis):
+        if not force and not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
 
         try:
