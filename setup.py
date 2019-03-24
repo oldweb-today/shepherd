@@ -39,7 +39,7 @@ setup(
         'six',
         'docker',
         'marshmallow>=3.0.0b',
-        'redis',
+        'redis<3.2',
         'apispec<1.0',
         'flask',
         'gevent',

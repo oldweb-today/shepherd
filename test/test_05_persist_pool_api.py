@@ -20,17 +20,17 @@ class TestPersistPoolApi:
     reqids = []
 
     def start(self, reqid):
-        res = self.client.post('/api/persist-pool/start_flock/' + reqid)
+        res = self.client.post('/api/start_flock/' + reqid)
         data = res.json or {}
         return data
 
     def stop(self, reqid):
-        res = self.client.post('/api/persist-pool/stop_flock/' + reqid)
+        res = self.client.post('/api/stop_flock/' + reqid)
         data = res.json or {}
         return data
 
     def do_req(self, params):
-        res = self.client.post('/api/persist-pool/request_flock/test_b', json=params)
+        res = self.client.post('/api/request_flock/test_b?pool=persist-pool', json=params)
         return res.json
 
     def do_req_and_start(self, **params):
@@ -39,7 +39,7 @@ class TestPersistPoolApi:
             return res
 
         reqid = res['reqid']
-        res = self.client.post('/api/persist-pool/start_flock/' + reqid)
+        res = self.client.post('/api/start_flock/' + reqid)
         data = res.json or {}
         TestPersistPoolApi.reqids.append(reqid)
         return data, reqid
@@ -50,7 +50,7 @@ class TestPersistPoolApi:
         assert res['containers']['box']
         assert redis.scard('p:persist-pool:f') == 1
 
-        new_res = self.client.post('/api/persist-pool/start_flock/' + reqid)
+        new_res = self.client.post('/api/start_flock/' + reqid)
 
         def assert_done():
             # not running
@@ -80,7 +80,7 @@ class TestPersistPoolApi:
             assert redis.scard('p:persist-pool:f') == x
 
             # duplicate request get same response
-            new_res = self.client.post('/api/persist-pool/start_flock/' + reqid)
+            new_res = self.client.post('/api/start_flock/' + reqid)
             assert res == new_res.json
 
         def assert_done():
@@ -104,7 +104,7 @@ class TestPersistPoolApi:
             assert redis.scard('p:persist-pool:s') == x
 
             # ensure double start doesn't move position
-            res = self.client.post('/api/persist-pool/start_flock/' + reqid)
+            res = self.client.post('/api/start_flock/' + reqid)
             assert res.json['queue'] == x - 1
 
         for x in range(1, 10):

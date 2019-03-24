@@ -7,10 +7,10 @@ from flask import Response, request
 
 # ============================================================================
 def init_routes(app):
-    @app.route(['/api/request_flock/<flock>', '/api/<pool>/request_flock/<flock>'], methods=['POST'], endpoint='request_flock',
+    @app.route('/api/request_flock/<flock>', methods=['POST'], endpoint='request_flock',
                req_schema=FlockRequestOptsSchema,
                resp_schema=GenericResponseSchema)
-    def request_flock(flock, pool='', **kwargs):
+    def request_flock(flock, **kwargs):
         """Request a new flock
         ---
         post:
@@ -21,7 +21,7 @@ def init_routes(app):
                   schema: FlockIdSchema
                   description: Flock id from the flocks.yaml file
 
-                - in: path
+                - in: query
                   name: pool
                   schema: {type: string}
                   description: the scheduling pool to use for this flock
@@ -44,12 +44,13 @@ def init_routes(app):
                 404:
                     schema: GenericResponseSchema
         """
-        return app.get_pool(pool).request(flock, kwargs.get('request'))
+        pool = request.args.get('pool', '')
+        return app.get_pool(pool=pool).request(flock, kwargs.get('request'))
 
 
-    @app.route(['/api/start_flock/<reqid>', '/api/<pool>/start_flock/<reqid>'], methods=['POST'],
+    @app.route('/api/start_flock/<reqid>', methods=['POST'],
                resp_schema=LaunchResponseSchema)
-    def start_flock(reqid, pool=''):
+    def start_flock(reqid):
         """Start a flock from reqid
         ---
         post:
@@ -77,11 +78,11 @@ def init_routes(app):
                     schema: GenericResponseSchema
         """
         json_data = request.json or {}
-        return app.get_pool(pool).start(reqid, environ=json_data.get('environ'))
+        return app.get_pool(reqid=reqid).start(reqid, environ=json_data.get('environ'))
 
-    @app.route(['/api/stop_flock/<reqid>', '/api/<pool>/stop_flock/<reqid>'], methods=['POST'],
+    @app.route('/api/stop_flock/<reqid>', methods=['POST'],
                resp_schema=GenericResponseSchema)
-    def stop_flock(reqid, pool=''):
+    def stop_flock(reqid):
         """Stop a flock from reqid
         ---
         post:
@@ -108,13 +109,13 @@ def init_routes(app):
                 404:
                     schema: GenericResponseSchema
         """
-        app.get_pool(pool).stop(reqid)
+        app.get_pool(reqid=reqid).stop(reqid)
         return {'success': True}
 
 
-    @app.route(['/api/start_deferred/<reqid>/<name>', '/api/<pool>/start_deferred/<reqid>/<name>'], methods=['POST'],
+    @app.route('/api/start_deferred/<reqid>/<name>', methods=['POST'],
                resp_schema=LaunchContainerSchema)
-    def start_deferred_container(reqid, name, pool=''):
+    def start_deferred_container(reqid, name):
         """Start a 'deferred' container that was not started automatically
            in an existing running flock
         ---
@@ -147,7 +148,7 @@ def init_routes(app):
                 404:
                     schema: GenericResponseSchema
         """
-        return app.get_pool(pool).start_deferred_container(reqid, name)
+        return app.get_pool(reqid=reqid).start_deferred_container(reqid, name)
 
     @app.route(['/api/flock/<reqid>', '/api/<pool>/flock/<reqid>'],
                methods=['GET'],

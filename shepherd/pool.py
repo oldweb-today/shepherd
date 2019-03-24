@@ -18,6 +18,8 @@ class LaunchAllPool(object):
 
     POOL_NETWORK_TEMPL = 'shepherd-net:%s:{0}'
 
+    REQ_TO_POOL = 'reqp:'
+
     DEFAULT_DURATION = 3600
 
     EXPIRE_CHECK = 30
@@ -55,7 +57,12 @@ class LaunchAllPool(object):
         gevent.spawn(self.expire_loop)
 
     def request(self, flock_name, req_opts):
-        return self.shepherd.request_flock(flock_name, req_opts)
+        res = self.shepherd.request_flock(flock_name, req_opts)
+
+        if 'reqid' in res:
+            self.redis.set(self.REQ_TO_POOL + res['reqid'], self.name)
+
+        return res
 
     def _mark_wait_duration(self, reqid, value=1):
         self.redis.set(self.req_key + reqid, value, ex=self.duration)
@@ -91,6 +98,8 @@ class LaunchAllPool(object):
             self.remove_running(reqid)
 
             self._mark_expired(reqid)
+
+            self.redis.delete(self.REQ_TO_POOL + reqid)
 
         return res
 
