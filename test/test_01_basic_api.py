@@ -39,7 +39,7 @@ class TestBasicApi:
         TestBasicApi.reqid = res.json['reqid']
 
     def test_invalid_pool(self, redis):
-        res = self.client.post('/api/bad-pool/request_flock/test_b')
+        res = self.client.post('/api/request_flock/test_b?pool=bad-pool')
         assert res.json == {'error': 'no_such_pool', 'pool': 'bad-pool'}
 
     def test_start_invalid_flock(self, redis):
@@ -52,6 +52,7 @@ class TestBasicApi:
         res = self.client.post('/api/start_flock/' + self.reqid,
                                json={'environ': {'NEW': 'VALUE'}})
 
+        print(res.json)
         assert res.json['containers']['box']
         assert res.json['containers']['box']['environ']['NEW'] == 'VALUE'
         assert res.json['network']

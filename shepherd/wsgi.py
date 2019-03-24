@@ -80,7 +80,8 @@ class APIFlask(Flask):
         self.shepherd = shepherd
 
         if not isinstance(pools, dict):
-            self.pools = {'': pools}
+            pool = pools
+            self.pools = {'': pool, pool.name: pool}
         else:
             self.pools = pools
 
@@ -106,11 +107,14 @@ class APIFlask(Flask):
 
         self.apispec.definition('LaunchResponse', schema=LaunchResponseSchema)
 
-    def get_pool(self, name):
+    def get_pool(self, *, pool=None, reqid=None):
+        if reqid:
+            pool = self.shepherd.get_pool_for_reqid(reqid)
+
         try:
-            return self.pools[name]
+            return self.pools[pool]
         except KeyError:
-            raise NoSuchPool(name)
+            raise NoSuchPool(pool)
 
     def add_url_rule(self, rule, endpoint=None, view_func=None, **kwargs):
         req_schema = kwargs.pop('req_schema', '')

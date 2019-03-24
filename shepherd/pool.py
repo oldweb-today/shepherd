@@ -55,7 +55,7 @@ class LaunchAllPool(object):
         gevent.spawn(self.expire_loop)
 
     def request(self, flock_name, req_opts):
-        return self.shepherd.request_flock(flock_name, req_opts)
+        return self.shepherd.request_flock(flock_name, req_opts, pool_name=self.name)
 
     def _mark_wait_duration(self, reqid, value=1):
         self.redis.set(self.req_key + reqid, value, ex=self.duration)
