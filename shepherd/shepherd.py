@@ -370,6 +370,8 @@ class Shepherd(object):
         # reload to get updated data
         container.reload()
 
+        self.wait_for_health(container)
+
         info = {}
         info['id'] = self.short_id(container)
 
@@ -390,6 +392,21 @@ class Shepherd(object):
         info['environ'] = environ
 
         return container, info
+
+    def wait_for_health(self, container):
+        state = None
+        while True:
+            try:
+                state = container.attrs['State']['Health']['State']
+            except KeyError:
+                logger.debug('No Health State, Continuing')
+                return
+
+            if state == 'healthy':
+                return
+
+            time.sleep(0.5)
+            logger.debug('Waiting for healthy state...')
 
     def get_network(self, flock_req):
         name = flock_req.get_network()
