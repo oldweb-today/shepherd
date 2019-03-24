@@ -13,12 +13,14 @@ def app(pool, shepherd):
 
 @pytest.mark.usefixtures('client_class', 'docker_client')
 class TestDeferred(object):
-    def test_deferred_flock_start(self):
+    def test_deferred_flock_start(self, redis):
         res = self.client.post('/api/request_flock/test_deferred?pool=test-pool')
 
         TestDeferred.reqid = res.json['reqid']
 
         res = self.client.post('/api/start_flock/{0}'.format(self.reqid))
+
+        assert redis.exists('reqp:' + self.reqid)
 
         assert res.json['containers']
         assert 'deferred' in res.json['containers']['box-p']
@@ -39,9 +41,10 @@ class TestDeferred(object):
         res = self.client.post('/api/start_deferred/{0}/box-1'.format(self.reqid))
         assert res.json == {'error': 'invalid_deferred', 'flock': 'test_deferred'}
 
-    def test_deferred_flock_stop(self):
+    def test_deferred_flock_stop(self, redis):
         res = self.client.post('/api/stop_flock/{0}'.format(self.reqid))
         assert res.json == {'success': True}
+        assert not redis.exists('reqp:' + self.reqid)
 
     def test_deferred_only(self):
         res = self.client.post('/api/request_flock/test_def_only?pool=test-pool')
