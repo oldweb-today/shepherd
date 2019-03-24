@@ -76,6 +76,8 @@ class NoSuchPool(Exception):
 
 # ============================================================================
 class APIFlask(Flask):
+    REQ_TO_POOL = 'reqp:'
+
     def __init__(self, shepherd, pools, name=None, **kwargs):
         self.shepherd = shepherd
 
@@ -109,7 +111,7 @@ class APIFlask(Flask):
 
     def get_pool(self, *, pool=None, reqid=None):
         if reqid:
-            pool = self.shepherd.get_pool_for_reqid(reqid)
+            pool = self.shepherd.redis.get(self.REQ_TO_POOL + reqid) or ''
 
         try:
             return self.pools[pool]

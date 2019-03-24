@@ -26,8 +26,6 @@ class Shepherd(object):
     USER_PARAMS_KEY = 'up:{0}'
     C_TO_U_KEY = 'cu:{0}'
 
-    REQ_TO_POOL = 'reqp:'
-
     SHEP_REQID_LABEL = 'owt.shepherd.reqid'
 
     SHEP_DEFERRED_LABEL = 'owt.shepherd.deferred'
@@ -94,10 +92,7 @@ class Shepherd(object):
 
         return num_loaded
 
-    def get_pool_for_reqid(self, reqid):
-        return self.redis.get(self.REQ_TO_POOL + reqid) or ''
-
-    def request_flock(self, flock_name, req_opts=None, ttl=None, pool_name=None):
+    def request_flock(self, flock_name, req_opts=None, ttl=None):
         req_opts = req_opts or {}
         try:
             flock = self.flocks[flock_name]
@@ -118,9 +113,6 @@ class Shepherd(object):
         flock_req.data['num_volumes'] = len(flock.get('volumes', []))
         ttl = ttl or self.DEFAULT_REQ_TTL
         flock_req.save(self.redis, expire=ttl)
-
-        if pool_name:
-            self.redis.set(self.REQ_TO_POOL + flock_req.reqid, pool_name)
 
         return {'reqid': flock_req.reqid}
 
@@ -481,8 +473,6 @@ class Shepherd(object):
         # with 'untracked' container removal
         if not keep_reqid:
             flock_req.delete(self.redis)
-            self.redis.delete(self.REQ_TO_POOL + reqid)
-
         else:
             flock_req.stop(self.redis)
 

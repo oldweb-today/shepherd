@@ -77,7 +77,6 @@ class TestDeferred(object):
 
         res = self.client.post('/api/request_flock/test_deferred?pool=test-pool', json=json)
 
-        print(res.json)
         reqid = res.json['reqid']
 
         res = self.client.post('/api/start_flock/{0}'.format(reqid))
