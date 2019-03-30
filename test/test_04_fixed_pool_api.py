@@ -5,12 +5,6 @@ from shepherd.wsgi import create_app
 from utils import sleep_try
 
 
-@pytest.fixture(scope='module')
-def app(shepherd, fixed_pool):
-    wsgi_app = create_app(shepherd, fixed_pool)
-    return wsgi_app
-
-
 @pytest.mark.usefixtures('client_class', 'docker_client')
 class TestFixedPoolApi:
     ids = []
@@ -29,7 +23,7 @@ class TestFixedPoolApi:
         return data
 
     def do_req(self, params):
-        res = self.client.post('/api/request_flock/test_b', json=params)
+        res = self.client.post('/api/request_flock/test_b?pool=fixed-pool', json=params)
         return res.json
 
     def queue_req(self):
@@ -129,7 +123,7 @@ class TestFixedPoolApi:
         self.pending.pop(0)
         self.pending.pop(0)
 
-    def test_expire_unused(self, redis, fixed_pool):
+    def test_expire_unused(self, redis):
         def assert_done():
             assert redis.scard('p:fixed-pool:f') == 3
 

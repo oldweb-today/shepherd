@@ -4,13 +4,6 @@ import pytest
 from shepherd.wsgi import create_app
 
 
-@pytest.fixture(scope='module')
-def app(pool, shepherd):
-    pools = {pool.name: pool}
-    wsgi_app = create_app(shepherd, pools)
-    return wsgi_app
-
-
 @pytest.mark.usefixtures('client_class', 'docker_client')
 class TestDeferred(object):
     def test_deferred_flock_start(self, redis):

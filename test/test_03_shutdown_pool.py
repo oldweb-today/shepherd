@@ -7,7 +7,7 @@ from utils import sleep_try
 # ============================================================================
 @pytest.mark.usefixtures('client_class', 'docker_client')
 class TestTimedPoolShutdownContainer:
-    def test_start_flock(self, pool, redis):
+    def test_start_flock(self, redis):
         res = self.client.post('/api/request_flock/test_b')
         reqid = res.json['reqid']
 
@@ -24,13 +24,15 @@ class TestTimedPoolShutdownContainer:
 
         sleep_try(0.2, 6.0, assert_done)
 
-    def test_flock_kill_container(self, redis, pool, docker_client):
+    def test_flock_kill_container(self, redis, app, docker_client):
         assert redis.exists('p:test-pool:rq:' + self.reqid)
 
         try:
             docker_client.containers.get(self.container['id']).kill()
         except:
             pass
+
+        pool = app.pools['test-pool']
 
         def assert_done():
             assert not redis.exists('p:test-pool:rq:' + self.reqid)

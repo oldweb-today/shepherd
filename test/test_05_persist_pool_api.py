@@ -3,16 +3,10 @@ import pytest
 import time
 from utils import sleep_try
 
-from shepherd.wsgi import create_app
 
-
-@pytest.fixture(scope='module')
-def app(shepherd, persist_pool, fixed_pool):
-    pools = {'persist-pool': persist_pool,
-             'fixed-pool': fixed_pool
-            }
-    wsgi_app = create_app(shepherd, pools)
-    return wsgi_app
+@pytest.fixture(scope='module', params=['persist-pool-stopping', 'persist-pool-removing'])
+def persist_pool(request, app):
+    return app.pools[request.param]
 
 
 @pytest.mark.usefixtures('client_class', 'docker_client')
@@ -29,12 +23,12 @@ class TestPersistPoolApi:
         data = res.json or {}
         return data
 
-    def do_req(self, params):
-        res = self.client.post('/api/request_flock/test_b?pool=persist-pool', json=params)
+    def do_req(self, persist_pool, params):
+        res = self.client.post('/api/request_flock/test_b?pool=' + persist_pool.name, json=params)
         return res.json
 
-    def do_req_and_start(self, **params):
-        res = self.do_req(params)
+    def do_req_and_start(self, persist_pool, **params):
+        res = self.do_req(persist_pool, params)
         if 'error' in res:
             return res
 
@@ -46,18 +40,18 @@ class TestPersistPoolApi:
 
     def test_dont_reque_on_clean_exit(self, redis, persist_pool):
         # if a clean exit (exit code, 0)
-        res, reqid = self.do_req_and_start(overrides={'box': 'test-shepherd/exit0'})
+        res, reqid = self.do_req_and_start(persist_pool, overrides={'box': 'test-shepherd/exit0'})
         assert res['containers']['box']
-        assert redis.scard('p:persist-pool:f') == 1
+        assert redis.scard('p:{0}:f'.format(persist_pool.name)) == 1
 
         new_res = self.client.post('/api/start_flock/' + reqid)
 
         def assert_done():
             # not running
-            assert redis.scard('p:persist-pool:f') == 0
+            assert redis.scard('p:{0}:f'.format(persist_pool.name)) == 0
 
             # not queued for restart
-            assert redis.scard('p:persist-pool:s') == 0
+            assert redis.scard('p:{0}:s'.format(persist_pool.name)) == 0
 
             assert len(persist_pool.start_events) == 2
             assert len(persist_pool.stop_events) == 2
@@ -75,9 +69,9 @@ class TestPersistPoolApi:
 
     def test_full_continue_running(self, redis, persist_pool):
         for x in range(1, 4):
-            res, reqid = self.do_req_and_start()
+            res, reqid = self.do_req_and_start(persist_pool)
             assert res['containers']['box']
-            assert redis.scard('p:persist-pool:f') == x
+            assert redis.scard('p:{0}:f'.format(persist_pool.name)) == x
 
             # duplicate request get same response
             new_res = self.client.post('/api/start_flock/' + reqid)
@@ -87,8 +81,8 @@ class TestPersistPoolApi:
             assert len(persist_pool.start_events) == 6
             assert len(persist_pool.stop_events) == 0
 
-            assert redis.llen('p:persist-pool:q') == 0
-            assert redis.scard('p:persist-pool:f') == 3
+            assert redis.llen('p:{0}:q'.format(persist_pool.name)) == 0
+            assert redis.scard('p:{0}:f'.format(persist_pool.name)) == 3
 
         sleep_try(0.2, 5.0, assert_done)
 
@@ -96,12 +90,12 @@ class TestPersistPoolApi:
         assert len(persist_pool.start_events) == 6
 
         for x in range(1, 4):
-            res, reqid = self.do_req_and_start()
+            res, reqid = self.do_req_and_start(persist_pool)
             assert res['queue'] == x - 1
-            assert redis.scard('p:persist-pool:f') == 3
+            assert redis.scard('p:{0}:f'.format(persist_pool.name)) == 3
 
-            assert redis.llen('p:persist-pool:q') == x
-            assert redis.scard('p:persist-pool:s') == x
+            assert redis.llen('p:{0}:q'.format(persist_pool.name)) == x
+            assert redis.scard('p:{0}:s'.format(persist_pool.name)) == x
 
             # ensure double start doesn't move position
             res = self.client.post('/api/start_flock/' + reqid)
@@ -110,8 +104,8 @@ class TestPersistPoolApi:
         for x in range(1, 10):
             time.sleep(2.1)
 
-            llen = redis.llen('p:persist-pool:q')
-            scard = redis.scard('p:persist-pool:s')
+            llen = redis.llen('p:{0}:q'.format(persist_pool.name))
+            scard = redis.scard('p:{0}:s'.format(persist_pool.name))
             assert llen in (2, 3)
             assert scard in (2, 3)
 
@@ -129,7 +123,7 @@ class TestPersistPoolApi:
         sleep_try(0.2, 20.0, assert_done)
 
     def test_stop_one_run_next(self, redis, persist_pool):
-        reqid = redis.srandmember('p:persist-pool:f')
+        reqid = redis.srandmember('p:{0}:f'.format(persist_pool.name))
 
         num_started = len(persist_pool.start_events)
         num_stopped = len(persist_pool.stop_events)
@@ -149,11 +143,11 @@ class TestPersistPoolApi:
             #time.sleep(0.2)
 
         def assert_done():
-            assert redis.scard('p:persist-pool:f') == 0
+            assert redis.scard('p:{0}:f'.format(persist_pool.name)) == 0
 
-            assert redis.llen('p:persist-pool:q') == 0
-            assert redis.scard('p:persist-pool:s') == 0
-            assert redis.scard('p:persist-pool:a') == 0
+            assert redis.llen('p:{0}:q'.format(persist_pool.name)) == 0
+            assert redis.scard('p:{0}:s'.format(persist_pool.name)) == 0
+            assert redis.scard('p:{0}:a'.format(persist_pool.name)) == 0
 
             assert persist_pool.reqid_starts == persist_pool.reqid_stops
 

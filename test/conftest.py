@@ -1,4 +1,3 @@
-from shepherd.pool import LaunchAllPool, FixedSizePool, PersistentPool
 from shepherd.shepherd import Shepherd
 from shepherd.wsgi import create_app
 
@@ -8,13 +7,15 @@ import os
 import docker
 import glob
 import gevent.lock
-
+from mock import patch
 
 NETWORKS_NAME = 'test-shepherd.net:{0}'
 
 TEST_DIR = os.path.join(os.path.dirname(__file__), 'data')
 
 TEST_FLOCKS = os.path.join(TEST_DIR, 'test_flocks.yaml')
+
+TEST_POOLS = os.path.join(TEST_DIR, 'test_pools.yaml')
 
 TEST_REQID_LABEL = 'owt.test.shepherd'
 
@@ -56,12 +57,18 @@ class DebugMixin(object):
 
         super(DebugMixin, self).handle_start_event(reqid, event, attrs)
 
-class DebugLaunchAllPool(DebugMixin, LaunchAllPool):
+
+# ============================================================================
+import shepherd.pool as pool
+
+class DebugLaunchAllPool(DebugMixin, pool.LaunchAllPool):
     pass
 
-
-class DebugPersistentPool(DebugMixin, PersistentPool):
+class DebugPersistentPool(DebugMixin, pool.PersistentPool):
     pass
+
+def get_pool_types():
+    return [DebugLaunchAllPool, pool.FixedSizePool, DebugPersistentPool]
 
 
 # ============================================================================
@@ -83,50 +90,13 @@ def shepherd(redis):
 
 
 @pytest.fixture(scope='module')
-def pool(redis, shepherd):
-    pool = DebugLaunchAllPool('test-pool', shepherd, redis, duration=1.2, expire_check=0.3)
+def app(shepherd):
+    with patch('shepherd.pool.get_pool_types', get_pool_types):
+        wsgi_app = create_app(shepherd, TEST_POOLS)
 
-    yield pool
+    yield wsgi_app
 
-    pool.shutdown()
-
-
-@pytest.fixture(scope='module')
-def fixed_pool(redis, shepherd):
-    pool = FixedSizePool('fixed-pool', shepherd, redis,
-                         duration=60.0,
-                         max_size=3,
-                         expire_check=0.3,
-                         wait_ping_ttl=25.0)
-
-    yield pool
-
-    pool.shutdown()
-
-
-@pytest.fixture(scope='module', params=['remove-on-pause', 'stop-on-pause'])
-def persist_pool(request, redis, shepherd):
-    stop_on_pause = (request.param=='stop-on-pause')
-    pool = DebugPersistentPool('persist-pool', shepherd, redis,
-                       duration=2.0,
-                       max_size=3,
-                       expire_check=0.3,
-                       grace_time=1,
-                       stop_on_pause=stop_on_pause,
-                       network_pool_size=2)
-
-    yield pool
-
-    pool.shutdown()
-
-
-
-
-@pytest.fixture(scope='module')
-def app(shepherd, pool):
-    wsgi_app = create_app(shepherd, pool)
-    return wsgi_app
-
+    wsgi_app.close()
 
 
 @pytest.fixture(scope='session')

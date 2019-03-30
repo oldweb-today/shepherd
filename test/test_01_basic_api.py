@@ -2,6 +2,10 @@ from gevent.monkey import patch_all; patch_all()
 import pytest
 from utils import sleep_try
 
+@pytest.fixture(scope='module')
+def pool(app):
+    return app.pools['test-pool']
+
 
 # ============================================================================
 @pytest.mark.usefixtures('client_class', 'docker_client')
@@ -52,7 +56,6 @@ class TestBasicApi:
         res = self.client.post('/api/start_flock/' + self.reqid,
                                json={'environ': {'NEW': 'VALUE'}})
 
-        print(res.json)
         assert res.json['containers']['box']
         assert res.json['containers']['box']['environ']['NEW'] == 'VALUE'
         assert res.json['network']

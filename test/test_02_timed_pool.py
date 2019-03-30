@@ -6,7 +6,7 @@ from utils import sleep_try
 # ============================================================================
 @pytest.mark.usefixtures('client_class', 'docker_client')
 class TestTimedPoolApi:
-    def test_start_flock(self, pool, redis):
+    def test_start_flock(self, redis):
         res = self.client.post('/api/request_flock/test_b')
         reqid = res.json['reqid']
 

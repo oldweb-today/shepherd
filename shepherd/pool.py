@@ -9,6 +9,8 @@ logger = logging.getLogger('shepherd.pool')
 
 # ============================================================================
 class LaunchAllPool(object):
+    TYPE = 'all'
+
     POOL_NAME_LABEL = 'owt.shepherd.pool'
     POOL_KEY = 'p:{id}:i'
 
@@ -179,6 +181,8 @@ class LaunchAllPool(object):
 
 # ============================================================================
 class FixedSizePool(LaunchAllPool):
+    TYPE = 'fixed'
+
     WAIT_PING_TTL = 10
 
     MAX_REMOVE_SWEEP = 10
@@ -277,6 +281,8 @@ class FixedSizePool(LaunchAllPool):
 
 # ============================================================================
 class PersistentPool(LaunchAllPool):
+    TYPE = 'persist'
+
     POOL_WAIT_Q = 'p:{id}:q'
 
     POOL_WAIT_SET = 'p:{id}:s'
@@ -462,3 +468,28 @@ class PersistentPool(LaunchAllPool):
             self.resume(self._pop_wait())
 
         return stop_res
+
+
+# ============================================================================
+def get_pool_types():
+    return [LaunchAllPool, FixedSizePool, PersistentPool]
+
+
+# ============================================================================
+def create_pool(shepherd, redis, pool_data):
+    all_pool_cls = get_pool_types()
+
+    the_cls = None
+
+    for pool_cls in all_pool_cls:
+        if pool_cls.TYPE == pool_data['type']:
+            the_cls = pool_cls
+            break
+
+    if not the_cls:
+        raise Exception('Unknown Pool for Type: ' + pool_data['type'])
+
+    name = pool_data.pop('name')
+    return the_cls(name, shepherd, redis, **pool_data)
+
+

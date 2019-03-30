@@ -4,6 +4,8 @@ from apispec.ext.marshmallow import MarshmallowPlugin
 
 import marshmallow
 import json
+import yaml
+import os
 
 from flask import Flask, jsonify, request, Response
 
@@ -13,6 +15,7 @@ from shepherd.schema import FlockIdSchema, FlockRequestOptsSchema, GenericRespon
 from shepherd.schema import LaunchResponseSchema
 
 from shepherd.api import init_routes
+from shepherd.pool import create_pool
 
 
 # ============================================================================
@@ -80,12 +83,14 @@ class APIFlask(Flask):
 
     def __init__(self, shepherd, pools, name=None, **kwargs):
         self.shepherd = shepherd
+        self.pools = {}
 
-        if not isinstance(pools, dict):
-            pool = pools
-            self.pools = {'': pool, pool.name: pool}
-        else:
+        if isinstance(pools, str):
+            self.load_pools(pools)
+        elif isinstance(pools, dict):
             self.pools = pools
+        else:
+            raise Exception('No Pools Filename or Dict Specified: ' + str(pools))
 
         name = name or __name__
 
@@ -109,14 +114,31 @@ class APIFlask(Flask):
 
         self.apispec.definition('LaunchResponse', schema=LaunchResponseSchema)
 
+    def close(self):
+        for pool in self.pools.values():
+            pool.shutdown()
+
     def get_pool(self, *, pool=None, reqid=None):
         if reqid:
-            pool = self.shepherd.redis.get(self.REQ_TO_POOL + reqid) or ''
+            pool = self.shepherd.redis.get(self.REQ_TO_POOL + reqid)
+
+        pool = pool or self.default_pool
 
         try:
             return self.pools[pool]
         except KeyError:
             raise NoSuchPool(pool)
+
+    def load_pools(self, filename):
+        with open(filename, 'rt') as fh:
+            contents = fh.read()
+            contents = os.path.expandvars(contents)
+            root = yaml.load(contents)
+            for data in root['pools']:
+                pool = create_pool(self.shepherd, self.shepherd.redis, data)
+                self.pools[pool.name] = pool
+
+        self.default_pool = os.environ.get('DEFAULT_POOL', root.get('default_pool', ''))
 
     def add_url_rule(self, rule, endpoint=None, view_func=None, **kwargs):
         req_schema = kwargs.pop('req_schema', '')
