@@ -15,45 +15,45 @@ class TestBasicApi:
         assert 'GenericResponseSchema' in res.data.decode('utf-8')
 
     def test_request_invalid_flock(self):
-        res = self.client.post('/api/request_flock/foo', json={'user_params': {'a': 'b'}})
+        res = self.client.post('/api/flock/request/foo', json={'user_params': {'a': 'b'}})
         assert res.json == {'error': 'invalid_flock', 'flock': 'foo'}
         assert res.status_code == 404
 
     def test_request_invalid_req_params(self):
-        res = self.client.post('/api/request_flock/test_1', json={'blah': 'foo', 'user_params': {'a': 'b'}})
+        res = self.client.post('/api/flock/request/test_1', json={'blah': 'foo', 'user_params': {'a': 'b'}})
         assert res.json == {'details': "{'blah': ['Unknown field.']}", 'error': 'invalid_options'}
         assert res.status_code == 400
 
     def test_request_invalid_overrides(self):
-        res = self.client.post('/api/request_flock/test_b', json={'overrides': {'box': 'test-shepherd/alpine'}})
+        res = self.client.post('/api/flock/request/test_b', json={'overrides': {'box': 'test-shepherd/alpine'}})
         assert res.json == {'error': 'invalid_image_param',
                             'image_expected': 'test-shepherd/busybox',
                             'image_passed': 'test-shepherd/alpine'}
 
     def test_request_environ_allow_bool(self):
-        res = self.client.post('/api/request_flock/test_b', json={'user_params': {'a': 'b'},
+        res = self.client.post('/api/flock/request/test_b', json={'user_params': {'a': 'b'},
                                                                   'environ': {'FOO': True}})
 
         assert res.json['reqid']
 
-    def test_request_flock(self):
-        res = self.client.post('/api/request_flock/test_b', json={'user_params': {'a': 'b'},
+    def test_flock_request(self):
+        res = self.client.post('/api/flock/request/test_b', json={'user_params': {'a': 'b'},
                                                                   'environ': {'FOO': 'BAR'}})
         assert res.json['reqid']
         TestBasicApi.reqid = res.json['reqid']
 
     def test_invalid_pool(self, redis):
-        res = self.client.post('/api/request_flock/test_b?pool=bad-pool')
+        res = self.client.post('/api/flock/request/test_b?pool=bad-pool')
         assert res.json == {'error': 'no_such_pool', 'pool': 'bad-pool'}
 
     def test_start_invalid_flock(self, redis):
-        res = self.client.post('/api/start_flock/x-invalid')
+        res = self.client.post('/api/flock/start/x-invalid')
         assert res.json == {'error': 'invalid_reqid'}
 
         assert not redis.hget('p:test-pool:i', 'size')
 
-    def test_start_flock(self, pool, redis):
-        res = self.client.post('/api/start_flock/' + self.reqid,
+    def test_flock_start(self, pool, redis):
+        res = self.client.post('/api/flock/start/' + self.reqid,
                                json={'environ': {'NEW': 'VALUE'}})
 
         assert res.json['containers']['box']
@@ -79,8 +79,8 @@ class TestBasicApi:
         assert res.json['image_list']
         assert res.json['id']
 
-    def test_stop_flock(self, pool, redis):
-        res = self.client.post('/api/stop_flock/' + self.reqid)
+    def test_flock_stop(self, pool, redis):
+        res = self.client.post('/api/flock/stop/' + self.reqid)
         assert res.json['success'] == True
 
         def assert_done():

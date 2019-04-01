@@ -1,0 +1,35 @@
+
+images:
+  browser:
+    label_match: wr.name
+    label_prefix: wr.
+    image_prefix: oldwebtoday/
+    exclude_labels:
+      - icon
+
+view:
+  image_prefix: oldwebtoday/
+  template: browser_embed.html
+  override: browser
+  default_flock: browsers
+
+default_pool: fixed-pool
+
+pools:
+  - name: fixed-pool
+    type: fixed
+    duration: 300
+    max_size: 10
+    expire_check: 30
+    number_ttl: 30
+    wait_ping_ttl: 30
+
+  - name: auto-pool
+    type: persist
+    duration: 1800
+    max_size: 4
+    expire_check: 30
+    grace_time: 1
+    stop_on_pause: false
+
+

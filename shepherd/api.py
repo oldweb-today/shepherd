@@ -3,11 +3,12 @@ from shepherd.schema import LaunchResponseSchema, LaunchContainerSchema, FlockRe
 from shepherd.shepherd import FlockRequest
 
 from flask import Response, request
+import json
 
 
 # ============================================================================
 def init_routes(app):
-    @app.route('/api/request_flock/<flock>', methods=['POST'], endpoint='request_flock',
+    @app.route('/api/flock/request/<flock>', methods=['POST'], endpoint='request_flock',
                req_schema=FlockRequestOptsSchema,
                resp_schema=GenericResponseSchema)
     def request_flock(flock, **kwargs):
@@ -48,7 +49,7 @@ def init_routes(app):
         return app.get_pool(pool=pool).request(flock, kwargs.get('request'))
 
 
-    @app.route('/api/start_flock/<reqid>', methods=['POST'],
+    @app.route('/api/flock/start/<reqid>', methods=['POST'],
                resp_schema=LaunchResponseSchema)
     def start_flock(reqid):
         """Start a flock from reqid
@@ -80,7 +81,7 @@ def init_routes(app):
         json_data = request.json or {}
         return app.get_pool(reqid=reqid).start(reqid, environ=json_data.get('environ'))
 
-    @app.route('/api/stop_flock/<reqid>', methods=['POST'],
+    @app.route('/api/flock/stop/<reqid>', methods=['POST'],
                resp_schema=GenericResponseSchema)
     def stop_flock(reqid):
         """Stop a flock from reqid
@@ -113,7 +114,7 @@ def init_routes(app):
         return {'success': True}
 
 
-    @app.route('/api/start_deferred/<reqid>/<name>', methods=['POST'],
+    @app.route('/api/flock/start_deferred/<reqid>/<name>', methods=['POST'],
                resp_schema=LaunchContainerSchema)
     def start_deferred_container(reqid, name):
         """Start a 'deferred' container that was not started automatically
@@ -150,7 +151,7 @@ def init_routes(app):
         """
         return app.get_pool(reqid=reqid).start_deferred_container(reqid, name)
 
-    @app.route(['/api/flock/<reqid>', '/api/<pool>/flock/<reqid>'],
+    @app.route(['/api/flock/<reqid>'],
                methods=['GET'],
                resp_schema=FlockRequestDataSchema)
     def get_flock(reqid):
@@ -180,7 +181,38 @@ def init_routes(app):
 
         return flock_req.data
 
+
+    @app.route('/api/images/<image_group>', methods=['GET'])
+    def get_images(image_group):
+        res = app.imageinfos[image_group].list_images(request.args)
+        return Response(json.dumps(res), mimetype='application/json')
+
+
     @app.route('/api', methods=['GET'])
     def print_api():
         return Response(app.apispec.to_yaml(), mimetype='text/yaml')
+
+
+    @app.route('/view/<image_name>/<path:url>')
+    def view_request(image_name, url):
+        if request.query_string:
+            url += '?' + request.query_string.decode('utf-8')
+
+        res = app.do_request(image_name, url=url)
+
+        reqid = res.get('reqid')
+
+        if not reqid:
+            return app.render_error(res)
+
+        return app.render(reqid)
+
+
+    @app.route('/attach/<reqid>')
+    def attach_request(reqid):
+        if not app.shepherd.is_valid_flock(reqid):
+            return app.render_error({'error': 'invalid_reqid'})
+
+        return app.render(reqid)
+
 

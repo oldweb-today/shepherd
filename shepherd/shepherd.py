@@ -84,7 +84,7 @@ class Shepherd(object):
         with open(filename, 'rt') as fh:
             contents = fh.read()
             contents = os.path.expandvars(contents)
-            all_flocks = yaml.load_all(contents)
+            all_flocks = yaml.load_all(contents, Loader=yaml.Loader)
             for data in all_flocks:
                 flock = FlockSpecSchema().load(data)
                 self.flocks[flock['name']] = flock
@@ -380,7 +380,7 @@ class Shepherd(object):
 
         info['ports'] = self.get_ports(container, ports)
 
-        if info['ip'] and flock_req.data.get('user_params') and spec.get('set_user_params'):
+        if info['ip'] and spec.get('set_user_params'):
             # add reqid to userparams
             flock_req.data['user_params']['reqid'] = flock_req.reqid
             up_key = self.USER_PARAMS_KEY.format(info['ip'])
@@ -432,6 +432,7 @@ class Shepherd(object):
             return False
 
         return layers[:len(base_layers)] == base_layers
+
 
     def stop_flock(self, reqid, keep_reqid=False, grace_time=None, network_pool=None):
         flock_req = FlockRequest(reqid)
@@ -686,7 +687,7 @@ class FlockRequest(object):
 
         self._copy_if_set('overrides', req_opts)
         self._copy_if_set('environ', req_opts, default=dict())
-        self._copy_if_set('user_params', req_opts)
+        self._copy_if_set('user_params', req_opts, default=dict())
         self._copy_if_set('deferred', req_opts)
         return self
 

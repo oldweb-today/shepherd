@@ -7,6 +7,13 @@ import glob
 
 from shepherd import __version__
 
+def load_requirements(filename):
+    with open(filename, 'rt') as fh:
+        requirements = fh.read().rstrip().split('\n')
+    return requirements
+
+
+
 class PyTest(TestCommand):
     def finalize_options(self):
         TestCommand.finalize_options(self)
@@ -35,16 +42,7 @@ setup(
     provides=[
         'shepherd',
         ],
-    install_requires=[
-        'six',
-        'docker',
-        'marshmallow>=3.0.0b',
-        'redis<3.2',
-        'apispec<1.0',
-        'flask',
-        'gevent',
-        'pyyaml',
-        ],
+    install_requires=load_requirements('requirements.txt'),
     zip_safe=True,
     entry_points="""
         [console_scripts]

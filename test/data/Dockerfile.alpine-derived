@@ -2,3 +2,7 @@ FROM test-shepherd/alpine
 
 ENV FOO BAR
 CMD sh -c 'sleep 300 & wait'
+
+LABEL testlabel.name=alpine-derived
+LABEL testlabel.caps.test=4
+

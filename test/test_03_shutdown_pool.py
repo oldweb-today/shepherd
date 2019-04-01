@@ -7,11 +7,11 @@ from utils import sleep_try
 # ============================================================================
 @pytest.mark.usefixtures('client_class', 'docker_client')
 class TestTimedPoolShutdownContainer:
-    def test_start_flock(self, redis):
-        res = self.client.post('/api/request_flock/test_b')
+    def test_flock_start(self, redis):
+        res = self.client.post('/api/flock/request/test_b')
         reqid = res.json['reqid']
 
-        res = self.client.post('/api/start_flock/' + reqid)
+        res = self.client.post('/api/flock/start/' + reqid)
         assert res.json['network']
         assert res.json['containers']['box']
 

@@ -3,3 +3,6 @@ FROM test-shepherd/busybox
 ENV FOO EXIT
 CMD sh -c 'exit 0'
 
+LABEL testlabel.name=testing-exit0
+LABEL testlabel.data="Other Data"
+

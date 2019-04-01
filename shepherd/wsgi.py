@@ -6,8 +6,10 @@ import marshmallow
 import json
 import yaml
 import os
+import base64
+import re
 
-from flask import Flask, jsonify, request, Response
+from flask import Flask, request, Response, render_template
 
 from shepherd import __version__
 
@@ -16,6 +18,150 @@ from shepherd.schema import LaunchResponseSchema
 
 from shepherd.api import init_routes
 from shepherd.pool import create_pool
+from shepherd.imageinfo import ImageInfo
+
+
+# ============================================================================
+class APIFlask(Flask):
+    REQ_TO_POOL = 'reqp:'
+    MATCH_TS = re.compile(r'([\d]{1,20})/(.*)')
+
+    def __init__(self, shepherd, config, name=None, **kwargs):
+        self.shepherd = shepherd
+        self.pools = {}
+        self.imageinfos = {}
+
+        self.load_config(config)
+
+        name = name or __name__
+
+        self._init_api()
+
+        super(APIFlask, self).__init__(name, **kwargs)
+
+    def load_config(self, filename):
+        with open(filename, 'rt') as fh:
+            contents = fh.read()
+            contents = os.path.expandvars(contents)
+            root = yaml.load(contents, Loader=yaml.Loader)
+            for data in root['pools']:
+                pool = create_pool(self.shepherd, self.shepherd.redis, data)
+                self.pools[pool.name] = pool
+
+            for name, data in root['images'].items():
+                info = ImageInfo(self.shepherd.docker, **data)
+                self.imageinfos[name] = info
+
+        self.default_pool = os.environ.get('DEFAULT_POOL', root.get('default_pool', ''))
+
+        view = root.get('view', {})
+        self.error_template = view.get('error_temlate') or 'error.html'
+        self.view_template = view.get('template')
+        self.view_image_prefix = view.get('image_prefix')
+        self.view_override_image = view.get('override')
+        self.view_default_flock = os.environ.get('DEFAULT_FLOCK', view.get('default_flock', ''))
+
+    def init_request_params(self, url):
+        m = self.MATCH_TS.match(url)
+        if m:
+            timestamp = m.group(1)
+            url = m.group(2)
+        else:
+            timestamp = ''
+
+        env = {
+               'URL': url,
+               'TIMESTAMP': timestamp,
+               'VNC_PASS': base64.b64encode(os.urandom(21)).decode('utf-8'),
+              }
+
+        user_params = {'URL': url,
+                       'TIMESTAMP': timestamp}
+
+        return env, user_params
+
+    def do_request(self, image_name, url):
+        full_image = self.view_image_prefix + image_name
+
+        opts = {}
+        opts['environ'], opts['user_params'] = self.init_request_params(url)
+        opts['overrides'] = {self.view_override_image: full_image}
+
+
+        return self.get_pool().request(self.view_default_flock, opts)
+
+    def render(self, reqid):
+        return render_template(self.view_template,
+                               reqid=reqid,
+                               environ=os.environ)
+
+    def render_error(self, error_info):
+        print(error_info)
+        for key, value in list(error_info.items()):
+            if value.startswith(self.view_image_prefix):
+                error_info[key] = value[len(self.view_image_prefix):]
+
+        return render_template(self.error_template,
+                               info=error_info), 400
+
+
+    def get_pool(self, *, pool=None, reqid=None):
+        if reqid:
+            pool = self.shepherd.redis.get(self.REQ_TO_POOL + reqid)
+
+        pool = pool or self.default_pool
+
+        try:
+            return self.pools[pool]
+        except KeyError:
+            raise NoSuchPool(pool)
+
+    def _init_api(self):
+        # Create an APISpec
+        self.apispec = APISpec(
+            title='Shepherd',
+            version=__version__,
+            openapi_version='3.0.0',
+            plugins=[
+                FlaskPlugin(),
+                MarshmallowPlugin(),
+            ],
+        )
+
+
+        self.apispec.definition('FlockId', schema=FlockIdSchema)
+        self.apispec.definition('FlockRequestOpts', schema=FlockRequestOptsSchema)
+
+        self.apispec.definition('GenericResponse', schema=GenericResponseSchema)
+
+        self.apispec.definition('LaunchResponse', schema=LaunchResponseSchema)
+
+    def close(self):
+        for pool in self.pools.values():
+            pool.shutdown()
+
+    def add_url_rule(self, rule, endpoint=None, view_func=None, **kwargs):
+        req_schema = kwargs.pop('req_schema', '')
+        resp_schema = kwargs.pop('resp_schema', '')
+
+        if req_schema or resp_schema:
+            view_func = Validator(view_func, req_schema, resp_schema)
+
+        if isinstance(rule, list):
+            for one_rule in rule:
+                super(APIFlask, self).add_url_rule(one_rule,
+                                                   endpoint=endpoint,
+                                                   view_func=view_func,
+                                                   **kwargs)
+
+        else:
+            super(APIFlask, self).add_url_rule(rule,
+                                               endpoint=endpoint,
+                                               view_func=view_func,
+                                               **kwargs)
+
+        with self.test_request_context():
+            self.apispec.add_path(view=view_func)
 
 
 # ============================================================================
@@ -77,96 +223,10 @@ class NoSuchPool(Exception):
     pass
 
 
-# ============================================================================
-class APIFlask(Flask):
-    REQ_TO_POOL = 'reqp:'
-
-    def __init__(self, shepherd, pools, name=None, **kwargs):
-        self.shepherd = shepherd
-        self.pools = {}
-
-        if isinstance(pools, str):
-            self.load_pools(pools)
-        elif isinstance(pools, dict):
-            self.pools = pools
-        else:
-            raise Exception('No Pools Filename or Dict Specified: ' + str(pools))
-
-        name = name or __name__
-
-        # Create an APISpec
-        self.apispec = APISpec(
-            title='Shepherd',
-            version=__version__,
-            openapi_version='3.0.0',
-            plugins=[
-                FlaskPlugin(),
-                MarshmallowPlugin(),
-            ],
-        )
-
-        super(APIFlask, self).__init__(name, **kwargs)
-
-        self.apispec.definition('FlockId', schema=FlockIdSchema)
-        self.apispec.definition('FlockRequestOpts', schema=FlockRequestOptsSchema)
-
-        self.apispec.definition('GenericResponse', schema=GenericResponseSchema)
-
-        self.apispec.definition('LaunchResponse', schema=LaunchResponseSchema)
-
-    def close(self):
-        for pool in self.pools.values():
-            pool.shutdown()
-
-    def get_pool(self, *, pool=None, reqid=None):
-        if reqid:
-            pool = self.shepherd.redis.get(self.REQ_TO_POOL + reqid)
-
-        pool = pool or self.default_pool
-
-        try:
-            return self.pools[pool]
-        except KeyError:
-            raise NoSuchPool(pool)
-
-    def load_pools(self, filename):
-        with open(filename, 'rt') as fh:
-            contents = fh.read()
-            contents = os.path.expandvars(contents)
-            root = yaml.load(contents)
-            for data in root['pools']:
-                pool = create_pool(self.shepherd, self.shepherd.redis, data)
-                self.pools[pool.name] = pool
-
-        self.default_pool = os.environ.get('DEFAULT_POOL', root.get('default_pool', ''))
-
-    def add_url_rule(self, rule, endpoint=None, view_func=None, **kwargs):
-        req_schema = kwargs.pop('req_schema', '')
-        resp_schema = kwargs.pop('resp_schema', '')
-
-        if req_schema or resp_schema:
-            view_func = Validator(view_func, req_schema, resp_schema)
-
-        if isinstance(rule, list):
-            for one_rule in rule:
-                super(APIFlask, self).add_url_rule(one_rule,
-                                                   endpoint=endpoint,
-                                                   view_func=view_func,
-                                                   **kwargs)
-
-        else:
-            super(APIFlask, self).add_url_rule(rule,
-                                               endpoint=endpoint,
-                                               view_func=view_func,
-                                               **kwargs)
-
-        with self.test_request_context():
-            self.apispec.add_path(view=view_func)
-
 
 # ============================================================================
-def create_app(shepherd, pool, **kwargs):
-    app = APIFlask(shepherd, pool, **kwargs)
+def create_app(shepherd, config_file, **kwargs):
+    app = APIFlask(shepherd, config_file, **kwargs)
 
     init_routes(app)
 

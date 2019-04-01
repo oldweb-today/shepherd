@@ -1,0 +1,25 @@
+body, div, canvas {
+    margin: 0px;
+    padding: 0px;
+    overflow: hidden;
+}
+
+canvas:focus { outline: none; }
+
+#browser {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+}
+
+#countdown {
+    display: none;
+}
+
+#browserMsg {
+    margin: 8px;
+    margin-top: 20px;
+    text-align: center;
+    width: 100%;
+}
+

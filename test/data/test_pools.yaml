@@ -1,5 +1,19 @@
 default_pool: test-pool
 
+images:
+  test-images:
+    label_match: testlabel.name
+    label_prefix: testlabel.
+    image_prefix: test-shepherd/
+    exclude_labels:
+      - extra
+
+view:
+  image_prefix: test-shepherd/
+  template: test-template.html
+  override: base-alpine
+  default_flock: test_1
+
 pools:
   - name: test-pool
     type: all

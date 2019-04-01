@@ -18,12 +18,12 @@ class TestFixedPoolApi:
             pass
 
     def start(self, reqid):
-        res = self.client.post('/api/start_flock/' + reqid)
+        res = self.client.post('/api/flock/start/' + reqid)
         data = res.json or {}
         return data
 
     def do_req(self, params):
-        res = self.client.post('/api/request_flock/test_b?pool=fixed-pool', json=params)
+        res = self.client.post('/api/flock/request/test_b?pool=fixed-pool', json=params)
         return res.json
 
     def queue_req(self):
@@ -38,7 +38,7 @@ class TestFixedPoolApi:
             return res, None
 
         reqid = res['reqid']
-        res = self.client.post('/api/start_flock/' + reqid)
+        res = self.client.post('/api/flock/start/' + reqid)
         data = res.json or {}
         return data, reqid
 
@@ -53,7 +53,7 @@ class TestFixedPoolApi:
             assert redis.scard('p:fixed-pool:f') == x
 
             # duplicate request get same response
-            new_res = self.client.post('/api/start_flock/' + reqid)
+            new_res = self.client.post('/api/flock/start/' + reqid)
             assert res == new_res.json
 
     def test_pool_full_queue_requests(self, redis):
@@ -69,14 +69,14 @@ class TestFixedPoolApi:
 
         sleep_try(0.2, 6.0, assert_done)
 
-        res = self.client.post('/api/start_flock/' + self.pending[1])
+        res = self.client.post('/api/flock/start/' + self.pending[1])
         assert res.json['queue'] == 1
 
-        res = self.client.post('/api/start_flock/' + self.pending[0])
+        res = self.client.post('/api/flock/start/' + self.pending[0])
         assert res.json['containers']['box']
         self.ids.append(res.json['containers']['box']['id'])
 
-        res = self.client.post('/api/start_flock/' + self.pending[1])
+        res = self.client.post('/api/flock/start/' + self.pending[1])
         assert res.json['queue'] == 0
 
         self.pending.pop(0)

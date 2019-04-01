@@ -24,11 +24,11 @@ class TestCleanup(object):
         assert shepherd.untracked_check_time == 2.0
 
     def test_ensure_flock_stop(self, docker_client):
-        res = self.client.post('/api/request_flock/test_b')
+        res = self.client.post('/api/flock/request/test_b')
 
         reqid = res.json['reqid']
 
-        res = self.client.post('/api/start_flock/{0}'.format(reqid))
+        res = self.client.post('/api/flock/start/{0}'.format(reqid))
 
         assert res.json['containers']
 
@@ -49,11 +49,11 @@ class TestCleanup(object):
         num_networks = self._count_volumes(docker_client, shepherd)
 
         for x in range(0, 3):
-            res = self.client.post('/api/request_flock/test_vol')
+            res = self.client.post('/api/flock/request/test_vol')
 
             reqid = res.json['reqid']
 
-            res = self.client.post('/api/start_flock/{0}'.format(reqid))
+            res = self.client.post('/api/flock/start/{0}'.format(reqid))
 
             assert res.json['containers']
 
@@ -75,11 +75,11 @@ class TestCleanup(object):
         reqids = []
 
         # start and kill containers
-        res = self.client.post('/api/request_flock/test_vol', json={'user_params': {'foo': 'bar'}})
+        res = self.client.post('/api/flock/request/test_vol', json={'user_params': {'foo': 'bar'}})
 
         reqid = res.json['reqid']
 
-        res = self.client.post('/api/start_flock/{0}'.format(reqid))
+        res = self.client.post('/api/flock/start/{0}'.format(reqid))
 
         reqids.append(reqid)
 

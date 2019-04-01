@@ -1,0 +1,14 @@
+<html>
+<body>
+
+{% if info.error == 'invalid_image_param' %}
+The image <b>{{ info.image_passed }}</b> is not a valid image.
+{% elif info.error == 'invalid_reqid' %}
+Not a valid image request.
+{% else %}
+{{ info }}
+{% endif %}
+
+
+</body>
+</html>

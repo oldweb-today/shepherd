@@ -1,3 +1,8 @@
 FROM alpine
 ENV FOO BAR
 CMD sh -c 'sleep 300 & wait'
+
+LABEL testlabel.name=alpine
+LABEL testlabel.caps.test=3
+
+LABEL testlabel.extra=bigvalue

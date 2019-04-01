@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<link href="/static/default.css" rel="stylesheet"/>
+
+{% if css %}
+<link href="{{ css }}" rel="stylesheet"/>
+{% endif %}
+
+<script src="/static/shepherd-client.bundle.js"></script>
+<script>
+InitBrowserDefault("{{ reqid }}", {"id": "#browser",
+                                   "inactiveSecs": {{ environ.INACTIVE_HIDE_TIMEOUT | default(0) }},
+                                   "audio": "wait_for_click",
+                                   "webrtc": true,
+                                   "webrtcHostIP": "{{ environ.WEBRTC_HOST_IP | default('') }}"});
+</script>
+
+</head>
+
+<body>
+<div id="countdown"></div>
+<div id="browser"></div>
+</body>
+
+</html>

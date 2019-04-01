@@ -4,3 +4,10 @@ ENV FOO NEW
 
 CMD sh -c 'sleep 300 & wait'
 
+LABEL testlabel.data="Some Data"
+LABEL testlabel.some=Value
+LABEL testlabel.name=busy
+
+LABEL testlabel.caps.small=1
+LABEL testlabel.caps.test=2
+
