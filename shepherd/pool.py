@@ -1,5 +1,7 @@
 import gevent
 import traceback
+
+from shepherd.flock import FlockRequest
 from shepherd.network_pool import CachedNetworkPool
 
 import logging
@@ -21,6 +23,8 @@ class LaunchAllPool(object):
     POOL_NETWORK_TEMPL = 'shepherd-net:%s:{0}'
 
     REQ_TO_POOL = 'reqp:'
+
+    REQ_KEY = 'req:'
 
     DEFAULT_DURATION = 3600
 
@@ -122,6 +126,10 @@ class LaunchAllPool(object):
     def curr_size(self):
         return self.redis.scard(self.flocks_key)
 
+    def num_avail(self):
+        max_size = self.redis.hget(self.pool_key, 'max_size')
+        return int(max_size) - self.curr_size()
+
     def event_loop(self):
         filters = {
                    'label': self.POOL_NAME_LABEL + '=' + self.name,
@@ -191,8 +199,6 @@ class FixedSizePool(LaunchAllPool):
 
     REQID_WAIT = 'p:{id}:r:'
 
-    REQ_KEY = 'req:'
-
     Q_SET = 'p:{id}:q'
 
     def __init__(self, *args, **kwargs):
@@ -221,10 +227,13 @@ class FixedSizePool(LaunchAllPool):
 
     def start(self, reqid, environ=None):
         if self.is_running(reqid):
-            return super(FixedSizePool, self).start(reqid, environ=environ)
+            return FlockRequest(reqid).load_cached_response(self.redis, required=True)
 
         pos = self.get_queue_pos(reqid)
         if pos >= 0:
+            if environ:
+                FlockRequest(reqid).update_env(environ, self.redis, save=True, expire=self.wait_ping_ttl)
+
             return {'queue': pos}
 
         res = super(FixedSizePool, self).start(reqid, environ=environ)
@@ -260,10 +269,6 @@ class FixedSizePool(LaunchAllPool):
 
         return pos
 
-    def num_avail(self):
-        max_size = self.redis.hget(self.pool_key, 'max_size')
-        return int(max_size) - self.curr_size()
-
     def ensure_queued(self, reqid):
         if not self.redis.get(self.reqid_wait + reqid):
             next_number = self.redis.hincrby(self.pool_key, self.NEXT, 1)
@@ -283,9 +288,9 @@ class FixedSizePool(LaunchAllPool):
 class PersistentPool(LaunchAllPool):
     TYPE = 'persist'
 
-    POOL_WAIT_Q = 'p:{id}:q'
+    POOL_WAIT_Q = 'p:{id}:wq'
 
-    POOL_WAIT_SET = 'p:{id}:s'
+    POOL_WAIT_SET = 'p:{id}:ws'
 
     POOL_ALL_SET = 'p:{id}:a'
 
@@ -317,14 +322,9 @@ class PersistentPool(LaunchAllPool):
             logger.debug('Flock Finished Successfully: ' +  reqid)
             self.stop(reqid)
 
-    def num_avail(self):
-        max_size = self.redis.hget(self.pool_key, 'max_size')
-        return int(max_size) - self.curr_size()
-
     def start(self, reqid, environ=None):
         if self.is_running(reqid):
-            return super(PersistentPool, self).start(reqid, environ=environ,
-                                                     pausable=self.stop_on_pause)
+            return FlockRequest(reqid).load_cached_response(self.redis, required=True)
 
         elif self.redis.sismember(self.pool_wait_set, reqid):
             return {'queue': self._find_wait_pos(reqid)}
@@ -332,6 +332,9 @@ class PersistentPool(LaunchAllPool):
         self._add_persist(reqid)
 
         if self.num_avail() == 0:
+            if environ:
+                FlockRequest(reqid).update_env(environ, self.redis, save=True)
+
             pos = self._push_wait(reqid)
             return {'queue': pos - 1}
 
@@ -342,26 +345,36 @@ class PersistentPool(LaunchAllPool):
         return self.redis.sismember(self.pool_all_set, reqid)
 
     def _add_persist(self, reqid):
+        logger.debug('Persist flock: ' + reqid)
+        self.redis.persist(self.REQ_KEY + reqid)
         return self.redis.sadd(self.pool_all_set, reqid)
 
     def _remove_persist(self, reqid):
+        logger.debug('Unpersist flock: ' + reqid)
         return self.redis.srem(self.pool_all_set, reqid)
 
     def _push_wait(self, reqid):
-        self.redis.sadd(self.pool_wait_set, reqid)
-        return self.redis.rpush(self.pool_wait_q, reqid)
+        logger.debug('Adding to Wait Queue: ' + reqid)
+        if self.redis.sadd(self.pool_wait_set, reqid):
+            res = self.redis.rpush(self.pool_wait_q, reqid)
+            logger.debug('Queued at pos: ' + str(res))
+            return res
+        else:
+            logger.debug('Already waiting: ' + reqid)
+            return -1
 
     def _pop_wait(self):
         reqid = self.redis.lpop(self.pool_wait_q)
         if reqid:
             self.redis.srem(self.pool_wait_set, reqid)
 
-        logger.debug('Next Flock: ' + str(reqid))
+        logger.debug('Got Next Flock: ' + str(reqid))
         return reqid
 
     def _remove_wait(self, reqid):
         self.redis.lrem(self.pool_wait_q, 1, reqid)
         self.redis.srem(self.pool_wait_set, reqid)
+        logger.debug('Remove from wait queue: ' + reqid)
 
     def _find_wait_pos(self, reqid):
         pool_list = self.redis.lrange(self.pool_wait_q, 0, -1)
@@ -375,7 +388,7 @@ class PersistentPool(LaunchAllPool):
         next_reqid = self._pop_wait()
 
         #if no next key, extend this for same duration
-        if next_reqid is None:
+        if next_reqid is None and (self.num_avail() >= 0):
             if not self._is_persist(reqid):
                 self.remove_running(reqid)
 
@@ -402,7 +415,6 @@ class PersistentPool(LaunchAllPool):
                                                       grace_time=self.grace_time)
 
             if 'error' not in pause_res and self._is_persist(reqid):
-                logger.debug('Adding to Wait Queue: ' + reqid)
                 self._push_wait(reqid)
 
             if 'error' in  pause_res:
@@ -437,7 +449,7 @@ class PersistentPool(LaunchAllPool):
                     elif 'error' in res:
                         logger.debug('Error: ' + str(res))
 
-                assert 'error' not in res
+                assert 'error' not in res, res
 
                 self.add_running(reqid)
 

@@ -10,7 +10,8 @@ from shepherd.wsgi import create_app
 NETWORK_NAME = 'shep-browsers:{0}'
 FLOCKS = 'flocks'
 
-CONFIG_FILE = os.environ.get('CONFIG_FILE', 'config.yaml')
+POOL_CONFIG_FILE = os.environ.get('POOL_CONFIG_FILE', 'pool_config.yaml')
+IMAGE_CONFIG_FILE = os.environ.get('IMAGE_CONFIG_FILE', 'image_config.yaml')
 
 REDIS_URL = os.environ.get('REDIS_BROWSER_URL', 'redis://redis/0')
 
@@ -29,7 +30,7 @@ def main():
     shepherd = Shepherd(redis, NETWORK_NAME)
     shepherd.load_flocks(FLOCKS)
 
-    return create_app(shepherd,  CONFIG_FILE)
+    return create_app(shepherd,  POOL_CONFIG_FILE, IMAGE_CONFIG_FILE)
 
 
 application = main()

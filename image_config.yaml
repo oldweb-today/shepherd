@@ -1,0 +1,16 @@
+
+images:
+  browser:
+    label_match: wr.name
+    label_prefix: wr.
+    image_prefix: oldwebtoday/
+    exclude_labels:
+      - icon
+
+view:
+  image_prefix: oldwebtoday/
+  template: browser_embed.html
+  override: browser
+  default_flock: browsers
+
+

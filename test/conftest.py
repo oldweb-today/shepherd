@@ -17,6 +17,8 @@ TEST_FLOCKS = os.path.join(TEST_DIR, 'test_flocks.yaml')
 
 TEST_POOLS = os.path.join(TEST_DIR, 'test_pools.yaml')
 
+TEST_IMAGES = os.path.join(TEST_DIR, 'test_images.yaml')
+
 TEST_REQID_LABEL = 'owt.test.shepherd'
 
 TEST_NETWORK_LABEL = 'owt.test.network'
@@ -92,7 +94,7 @@ def shepherd(redis):
 @pytest.fixture(scope='module')
 def app(shepherd):
     with patch('shepherd.pool.get_pool_types', get_pool_types):
-        wsgi_app = create_app(shepherd, TEST_POOLS, template_folder=TEST_DIR)
+        wsgi_app = create_app(shepherd, TEST_POOLS, TEST_IMAGES, template_folder=TEST_DIR)
 
     yield wsgi_app
 

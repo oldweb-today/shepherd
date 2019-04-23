@@ -26,36 +26,41 @@ class APIFlask(Flask):
     REQ_TO_POOL = 'reqp:'
     MATCH_TS = re.compile(r'([\d]{1,20})/(.*)')
 
-    def __init__(self, shepherd, config, name=None, **kwargs):
+    def __init__(self, shepherd, pools_filename, images_filename, name=None, *args, **kwargs):
         self.shepherd = shepherd
         self.pools = {}
         self.imageinfos = {}
 
-        self.load_config(config)
+        self.init_pool_config(self.load_yaml_file(pools_filename))
+        self.init_image_config(self.load_yaml_file(images_filename))
 
         name = name or __name__
 
         self._init_api()
 
-        super(APIFlask, self).__init__(name, **kwargs)
+        super(APIFlask, self).__init__(name, *args, **kwargs)
 
-    def load_config(self, filename):
+    def load_yaml_file(self, filename):
         with open(filename, 'rt') as fh:
             contents = fh.read()
             contents = os.path.expandvars(contents)
-            root = yaml.load(contents, Loader=yaml.Loader)
-            for data in root['pools']:
-                pool = create_pool(self.shepherd, self.shepherd.redis, data)
-                self.pools[pool.name] = pool
+            config = yaml.load(contents, Loader=yaml.Loader)
+            return config
 
-            for name, data in root['images'].items():
-                info = ImageInfo(self.shepherd.docker, **data)
-                self.imageinfos[name] = info
+    def init_pool_config(self, config):
+        for data in config['pools']:
+            pool = create_pool(self.shepherd, self.shepherd.redis, data)
+            self.pools[pool.name] = pool
 
-        self.default_pool = os.environ.get('DEFAULT_POOL', root.get('default_pool', ''))
+        self.default_pool = os.environ.get('DEFAULT_POOL', config.get('default_pool', ''))
 
-        view = root.get('view', {})
-        self.error_template = view.get('error_temlate') or 'error.html'
+    def init_image_config(self, config):
+        for name, data in config['images'].items():
+            info = ImageInfo(self.shepherd.docker, **data)
+            self.imageinfos[name] = info
+
+        view = config.get('view', {})
+        self.error_template = view.get('error_template') or 'error.html'
         self.view_template = view.get('template')
         self.view_image_prefix = view.get('image_prefix')
         self.view_override_image = view.get('override')
@@ -225,8 +230,8 @@ class NoSuchPool(Exception):
 
 
 # ============================================================================
-def create_app(shepherd, config_file, **kwargs):
-    app = APIFlask(shepherd, config_file, **kwargs)
+def create_app(*args, **kwargs):
+    app = APIFlask(*args, **kwargs)
 
     init_routes(app)
 

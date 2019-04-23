@@ -193,6 +193,14 @@ def init_routes(app):
         return Response(app.apispec.to_yaml(), mimetype='text/yaml')
 
 
+    @app.route('/api/request/<image_name>/<path:url>')
+    def api_image_request(image_name, url):
+        if request.query_string:
+            url += '?' + request.query_string.decode('utf-8')
+
+        res = app.do_request(image_name, url=url)
+        return Response(json.dumps(res), mimetype='application/json')
+
     @app.route('/view/<image_name>/<path:url>')
     def view_request(image_name, url):
         if request.query_string:

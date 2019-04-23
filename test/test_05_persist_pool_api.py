@@ -51,7 +51,7 @@ class TestPersistPoolApi:
             assert redis.scard('p:{0}:f'.format(persist_pool.name)) == 0
 
             # not queued for restart
-            assert redis.scard('p:{0}:s'.format(persist_pool.name)) == 0
+            assert redis.scard('p:{0}:ws'.format(persist_pool.name)) == 0
 
             assert len(persist_pool.start_events) == 2
             assert len(persist_pool.stop_events) == 2
@@ -81,7 +81,7 @@ class TestPersistPoolApi:
             assert len(persist_pool.start_events) == 6
             assert len(persist_pool.stop_events) == 0
 
-            assert redis.llen('p:{0}:q'.format(persist_pool.name)) == 0
+            assert redis.llen('p:{0}:wq'.format(persist_pool.name)) == 0
             assert redis.scard('p:{0}:f'.format(persist_pool.name)) == 3
 
         sleep_try(0.2, 5.0, assert_done)
@@ -94,8 +94,8 @@ class TestPersistPoolApi:
             assert res['queue'] == x - 1
             assert redis.scard('p:{0}:f'.format(persist_pool.name)) == 3
 
-            assert redis.llen('p:{0}:q'.format(persist_pool.name)) == x
-            assert redis.scard('p:{0}:s'.format(persist_pool.name)) == x
+            assert redis.llen('p:{0}:wq'.format(persist_pool.name)) == x
+            assert redis.scard('p:{0}:ws'.format(persist_pool.name)) == x
 
             # ensure double start doesn't move position
             res = self.client.post('/api/flock/start/' + reqid)
@@ -104,8 +104,8 @@ class TestPersistPoolApi:
         for x in range(1, 10):
             time.sleep(2.1)
 
-            llen = redis.llen('p:{0}:q'.format(persist_pool.name))
-            scard = redis.scard('p:{0}:s'.format(persist_pool.name))
+            llen = redis.llen('p:{0}:wq'.format(persist_pool.name))
+            scard = redis.scard('p:{0}:ws'.format(persist_pool.name))
             assert llen in (2, 3)
             assert scard in (2, 3)
 
@@ -145,8 +145,8 @@ class TestPersistPoolApi:
         def assert_done():
             assert redis.scard('p:{0}:f'.format(persist_pool.name)) == 0
 
-            assert redis.llen('p:{0}:q'.format(persist_pool.name)) == 0
-            assert redis.scard('p:{0}:s'.format(persist_pool.name)) == 0
+            assert redis.llen('p:{0}:wq'.format(persist_pool.name)) == 0
+            assert redis.scard('p:{0}:ws'.format(persist_pool.name)) == 0
             assert redis.scard('p:{0}:a'.format(persist_pool.name)) == 0
 
             assert persist_pool.reqid_starts == persist_pool.reqid_stops

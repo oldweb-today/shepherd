@@ -59,6 +59,11 @@ class TestImages:
 
         assert res.json['alpine']['extra'] == 'bigvalue'
 
+    def test_image_api(self, docker_client, redis):
+        res = self.client.get('/api/request/alpine-derived/1996/http://example.com/path?foo=bar')
+
+        assert res.json['reqid']
+
 
     def test_view(self, docker_client, redis):
         res = self.client.get('/view/alpine-derived/1996/http://example.com/path?foo=bar')

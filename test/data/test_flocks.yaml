@@ -17,6 +17,7 @@ containers:
     environment:
       TEST: FOO
       VAR: BAR
+      SOME: VAL
 
 
 ---

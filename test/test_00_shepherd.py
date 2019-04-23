@@ -43,7 +43,7 @@ class TestShepherd(object):
 
     def test_reqid(self, shepherd, redis):
         req_opts = dict(overrides={'base-alpine': 'test-shepherd/alpine-derived'},
-                        environ={'FOO': 'BAR2'},
+                        environ={'FOO': 'BAR2', 'SOME': ''},
                         user_params=self.USER_PARAMS)
 
         res = shepherd.request_flock('test_1', req_opts)
@@ -90,6 +90,7 @@ class TestShepherd(object):
 
         # overriden!
         assert 'FOO=BAR2' in env
+        assert 'SOME=' in env
 
         # added at start
         assert 'ANOTHER=VALUE' in env
@@ -128,13 +129,15 @@ class TestShepherd(object):
                     'ANOTHER': 'VALUE',
                     'TEST': 'FOO',
                     'VAR': 'BAR',
-                    'FOO': 'BAR2'
+                    'FOO': 'BAR2',
+                    'SOME': '',
                 }
 
             else:
                 assert info['environ'] == {
                     'ANOTHER': 'VALUE',
-                    'FOO': 'BAR2'
+                    'FOO': 'BAR2',
+                    'SOME': '',
                 }
 
         # verify network
