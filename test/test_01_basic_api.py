@@ -95,4 +95,8 @@ class TestBasicApi:
         assert not redis.exists('p:test-pool:rq:' + self.reqid)
         assert redis.scard('p:test-pool:f') == 0
 
+    def test_flock_remove(self, pool, redis):
+        res = self.client.post('/api/flock/remove/' + self.reqid)
+        assert res.json['success'] == True
+
 

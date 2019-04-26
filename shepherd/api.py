@@ -113,6 +113,37 @@ def init_routes(app):
         app.get_pool(reqid=reqid).stop(reqid)
         return {'success': True}
 
+    @app.route('/api/flock/remove/<reqid>', methods=['POST'],
+               resp_schema=GenericResponseSchema)
+    def remove_flock(reqid):
+        """Stop a flock from reqid
+        ---
+        post:
+            summary: Remove flock by id
+            parameters:
+                - in: path
+                  name: reqid
+                  schema: {type: string}
+                  description: a unique request id that was created from flock request
+
+                - in: path
+                  name: pool
+                  schema: {type: string}
+                  description: the scheduling pool to use for this flock
+
+            responses:
+                200:
+                    description: Returns 'success' if stopped
+                    schema: GenericResponseSchema
+
+                400:
+                    schema: GenericResponseSchema
+
+                404:
+                    schema: GenericResponseSchema
+        """
+        app.get_pool(reqid=reqid).remove(reqid)
+        return {'success': True}
 
     @app.route('/api/flock/start_deferred/<reqid>/<name>', methods=['POST'],
                resp_schema=LaunchContainerSchema)

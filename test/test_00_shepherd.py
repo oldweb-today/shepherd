@@ -143,12 +143,28 @@ class TestShepherd(object):
         # verify network
         assert docker_client.networks.get(flock['network'])
 
-    def test_stop(self, docker_client, shepherd, redis):
+    def test_stop(self, shepherd, docker_client):
+        flock = TestShepherd.flock
+        containers = flock['containers']
+
+        for container in containers.values():
+            assert docker_client.containers.get(container['id']).status == 'running'
+
+        res = shepherd.stop_flock(self.reqid, grace_time=1)
+
+        time.sleep(1.5)
+
+        assert shepherd.is_valid_flock(self.reqid, 'stopped')
+
+        for container in containers.values():
+            assert docker_client.containers.get(container['id']).status == 'exited'
+
+    def test_remove(self, docker_client, shepherd, redis):
         time.sleep(0.5)
 
         assert shepherd.is_valid_flock(self.reqid)
 
-        res = shepherd.stop_flock(self.reqid)
+        res = shepherd.remove_flock(self.reqid)
 
         assert not shepherd.is_valid_flock(self.reqid)
 
@@ -191,7 +207,7 @@ class TestShepherd(object):
         assert docker_client.volumes.get(vol_1)
         assert docker_client.volumes.get(vol_2)
 
-        res = shepherd.stop_flock(reqid)
+        res = shepherd.remove_flock(reqid)
 
         assert res == {'success': True}
 
@@ -243,56 +259,12 @@ class TestShepherd(object):
 
         finally:
             try:
-                shepherd.stop_flock(reqid)
+                shepherd.remove_flock(reqid)
             except:
                 pass
 
         external_net.reload()
         assert external_net.containers == []
-
-    def test_pause_resume(self, shepherd, docker_client):
-        res = shepherd.request_flock('test_b')
-
-        reqid = res['reqid']
-
-        assert shepherd.is_valid_flock(reqid, 'new')
-
-        response = shepherd.start_flock(reqid, pausable=True)
-
-        for container in response['containers'].values():
-            assert docker_client.containers.get(container['id']).status == 'running'
-
-        res = shepherd.pause_flock(reqid, grace_time=1)
-
-        time.sleep(1.5)
-
-        assert shepherd.is_valid_flock(reqid, 'paused')
-
-        for container in response['containers'].values():
-            assert docker_client.containers.get(container['id']).status == 'exited'
-
-        res = shepherd.resume_flock(reqid)
-
-        assert shepherd.is_valid_flock(reqid, 'running')
-
-        for container in response['containers'].values():
-            assert docker_client.containers.get(container['id']).status == 'running'
-
-        res = shepherd.stop_flock(reqid, keep_reqid=True)
-
-        # reqid not removed yet, set to 'stopped'
-        assert shepherd.is_valid_flock(reqid, 'stopped')
-
-        # containers removed
-        for container in response['containers'].values():
-            with pytest.raises(docker.errors.NotFound):
-                docker_client.containers.get(container['id'])
-
-        res = shepherd.stop_flock(reqid)
-
-        # reqid removed
-        assert not shepherd.is_valid_flock(reqid, 'stopped')
-        assert not shepherd.is_valid_flock(reqid)
 
     def test_start_deferred_container(self, shepherd, docker_client):
         res = shepherd.request_flock('test_deferred')
@@ -326,7 +298,7 @@ class TestShepherd(object):
 
         assert res == res2
 
-        res = shepherd.stop_flock(reqid)
+        res = shepherd.remove_flock(reqid)
 
         assert res['success'] == True
 
@@ -346,7 +318,7 @@ class TestShepherd(object):
         box_p = docker_client.containers.get(res['containers']['box-p']['id'])
         assert box_p.status == 'running'
 
-        res = shepherd.stop_flock(reqid)
+        res = shepherd.remove_flock(reqid)
 
         assert res['success'] == True
 

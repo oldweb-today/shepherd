@@ -1,10 +1,11 @@
 from gevent.monkey import patch_all; patch_all()
 import pytest
 import time
+import docker
 from utils import sleep_try
 
 
-@pytest.fixture(scope='module', params=['persist-pool-stopping', 'persist-pool-removing'])
+@pytest.fixture(scope='module', params=['persist-pool'])
 def persist_pool(request, app):
     return app.pools[request.param]
 
@@ -19,8 +20,9 @@ class TestPersistPoolApi:
         return data
 
     def stop(self, reqid):
-        res = self.client.post('/api/flock/stop/' + reqid)
+        res = self.client.post('/api/flock/remove/' + reqid)
         data = res.json or {}
+        print('REM', data)
         return data
 
     def do_req(self, persist_pool, params):
@@ -38,7 +40,7 @@ class TestPersistPoolApi:
         TestPersistPoolApi.reqids.append(reqid)
         return data, reqid
 
-    def test_dont_reque_on_clean_exit(self, redis, persist_pool):
+    def test_dont_reque_on_clean_exit(self, redis, persist_pool, docker_client):
         # if a clean exit (exit code, 0)
         res, reqid = self.do_req_and_start(persist_pool, overrides={'box': 'test-shepherd/exit0'})
         assert res['containers']['box']
@@ -60,6 +62,18 @@ class TestPersistPoolApi:
             assert persist_pool.reqid_stops[reqid] == 2
 
         sleep_try(0.2, 10.0, assert_done)
+
+        containers = res['containers']
+        for container in containers.values():
+            assert docker_client.containers.get(container['id']).status == 'exited'
+
+        rem_res = self.client.post('/api/flock/remove/' + reqid)
+
+        assert rem_res.json.get('success')
+
+        for container in containers.values():
+            with pytest.raises(docker.errors.NotFound):
+                docker_client.containers.get(container['id'])
 
         persist_pool.start_events.clear()
         persist_pool.stop_events.clear()
@@ -136,7 +150,7 @@ class TestPersistPoolApi:
 
         sleep_try(0.2, 5.0, assert_done)
 
-    def test_stop_all(self, redis, persist_pool):
+    def test_remove_all(self, redis, persist_pool):
         while len(self.reqids) > 0:
             remove = self.reqids.pop()
             self.stop(remove)

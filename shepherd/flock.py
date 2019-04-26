@@ -50,7 +50,7 @@ class FlockRequest(object):
         return self.data.get('overrides') or {}
 
     def get_state(self):
-        return self.data.get('state', 'new')
+        return self.data and self.data.get('state', 'new')
 
     def set_state(self, state, redis):
         self.data['state'] = state

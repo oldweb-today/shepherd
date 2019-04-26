@@ -53,7 +53,7 @@ setup(
         'pytest',
         'pytest-cov',
         'pytest-flask',
-        'fakeredis',
+        'fakeredis<1.0',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',

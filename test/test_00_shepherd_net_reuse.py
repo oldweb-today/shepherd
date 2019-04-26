@@ -37,7 +37,7 @@ class TestNetReuse:
 
         TestNetReuse.net_name = network
 
-        res = shepherd.stop_flock(reqid, network_pool=reuse_network_pool)
+        res = shepherd.remove_flock(reqid, network_pool=reuse_network_pool)
 
         assert res == {'success': True}
 
@@ -49,7 +49,7 @@ class TestNetReuse:
 
         assert TestNetReuse.net_name == network
 
-        res = shepherd.stop_flock(reqid, network_pool=reuse_network_pool)
+        res = shepherd.remove_flock(reqid, network_pool=reuse_network_pool)
 
         assert res == {'success': True}
 

@@ -106,8 +106,8 @@ class TestImages:
 
         assert self.reqid == m.group(1)
 
-    def test_stop(self):
-        res = self.client.post('/api/flock/stop/' + self.reqid)
+    def test_remove(self):
+        res = self.client.post('/api/flock/remove/' + self.reqid)
         assert res.json['success'] == True
 
     def test_view_error(self):

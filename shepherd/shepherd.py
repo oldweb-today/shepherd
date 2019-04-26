@@ -129,10 +129,14 @@ class Shepherd(object):
     def start_flock(self, reqid,
                     labels=None,
                     environ=None,
-                    pausable=False,
+                    auto_remove=False,
                     network_pool=None):
 
         flock_req = FlockRequest(reqid)
+        state = flock_req.get_state()
+        if state == 'stopped':
+            return {'error': 'already_done'}
+
         response = flock_req.load_cached_response(self.redis)
         if response:
             return response
@@ -156,13 +160,13 @@ class Shepherd(object):
         labels[self.reqid_label] = flock_req.reqid
 
         try:
+            flock_req.set_state('running', self.redis)
+
             network_pool = network_pool or self.network_pool
             network = network_pool.create_network()
 
             flock_req.set_network(network.name)
 
-            # auto remove if not pausable and flock auto_remove is true
-            auto_remove = not pausable and flock_spec.get('auto_remove', True)
             flock_req.data['auto_remove'] = auto_remove
 
             volume_binds, volumes = self.get_volumes(flock_req, flock_spec, labels, create=True)
@@ -192,7 +196,7 @@ class Shepherd(object):
             traceback.print_exc()
 
             try:
-                self.stop_flock(reqid)
+                self.remove_flock(reqid)
             except:
                 pass
 
@@ -431,7 +435,7 @@ class Shepherd(object):
         return layers[:len(base_layers)] == base_layers
 
 
-    def stop_flock(self, reqid, keep_reqid=False, grace_time=None, network_pool=None):
+    def remove_flock(self, reqid, keep_reqid=False, grace_time=None, network_pool=None):
         flock_req = FlockRequest(reqid)
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
@@ -552,7 +556,7 @@ class Shepherd(object):
 
         return num_volumes == 0
 
-    def pause_flock(self, reqid, grace_time=1):
+    def stop_flock(self, reqid, grace_time=1):
         flock_req = FlockRequest(reqid)
         if not flock_req.load(self.redis):
             return {'error': 'invalid_reqid'}
@@ -565,40 +569,15 @@ class Shepherd(object):
             containers = self.get_flock_containers(flock_req)
 
             for container in containers:
+                print('Stopping {0} with grace {1}'.format(container.id, grace_time))
                 self._do_graceful_stop(container, grace_time)
 
-            flock_req.set_state('paused', self.redis)
+            flock_req.set_state('stopped', self.redis)
 
         except:
             traceback.print_exc()
 
-            return {'error': 'pause_failed',
-                    'details': traceback.format_exc()
-                   }
-
-        return {'success': True}
-
-    def resume_flock(self, reqid):
-        flock_req = FlockRequest(reqid)
-        if not flock_req.load(self.redis):
-            return {'error': 'invalid_reqid'}
-
-        state = flock_req.get_state()
-        if state != 'paused':
-            return {'error': 'not_paused', 'state': state}
-
-        try:
-            containers = self.get_flock_containers(flock_req)
-
-            for container in containers:
-                container.start()
-
-            flock_req.set_state('running', self.redis)
-
-        except:
-            traceback.print_exc()
-
-            return {'error': 'resume_failed',
+            return {'error': 'stop_failed',
                     'details': traceback.format_exc()
                    }
 

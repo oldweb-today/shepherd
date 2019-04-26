@@ -13,23 +13,11 @@ pools:
     expire_check: 0.3
     wait_ping_ttl: 25.0
 
-  - name: persist-pool-stopping
+  - name: persist-pool
     type: persist
     duration: 2.0
     max_size: 3
     expire_check: 0.3
     grace_time: 1
-    stop_on_pause: True
     network_pool_size: 2
-
-  - name: persist-pool-removing
-    type: persist
-    duration: 2.0
-    max_size: 3
-    expire_check: 0.3
-    grace_time: 1
-    stop_on_pause: False
-    network_pool_size: 2
-
-
 
