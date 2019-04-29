@@ -1,7 +1,7 @@
 six
 docker
 marshmallow>=3.0.0b
-redis<3.2
+redis<3.0
 apispec<1.0
 flask
 gevent
