@@ -1,5 +1,6 @@
 from apispec import APISpec
-from apispec.ext.flask import FlaskPlugin
+#from apispec.ext.flask import FlaskPlugin
+from apispec_webframeworks.flask import FlaskPlugin
 from apispec.ext.marshmallow import MarshmallowPlugin
 
 import marshmallow
@@ -39,6 +40,9 @@ class APIFlask(Flask):
         self._init_api()
 
         super(APIFlask, self).__init__(name, *args, **kwargs)
+
+        self.config['TEMPLATES_AUTO_RELOAD'] = True
+        self.jinja_env.auto_reload = True
 
     def load_yaml_file(self, filename):
         with open(filename, 'rt') as fh:
@@ -134,12 +138,12 @@ class APIFlask(Flask):
         )
 
 
-        self.apispec.definition('FlockId', schema=FlockIdSchema)
-        self.apispec.definition('FlockRequestOpts', schema=FlockRequestOptsSchema)
+        self.apispec.components.schema('FlockId', schema=FlockIdSchema)
+        self.apispec.components.schema('FlockRequestOpts', schema=FlockRequestOptsSchema)
 
-        self.apispec.definition('GenericResponse', schema=GenericResponseSchema)
+        self.apispec.components.schema('GenericResponse', schema=GenericResponseSchema)
 
-        self.apispec.definition('LaunchResponse', schema=LaunchResponseSchema)
+        self.apispec.components.schema('LaunchResponse', schema=LaunchResponseSchema)
 
     def close(self):
         for pool in self.pools.values():
@@ -166,7 +170,7 @@ class APIFlask(Flask):
                                                **kwargs)
 
         with self.test_request_context():
-            self.apispec.add_path(view=view_func)
+            self.apispec.path(view=view_func)
 
 
 # ============================================================================

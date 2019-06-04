@@ -1,0 +1,106 @@
+<html>
+<head>
+  <!-- Include base CSS (optional) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/base.min.css">
+  <!-- Include Choices CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
+  <!-- Include Choices JavaScript -->
+  <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+
+<!--
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css">-->
+
+  <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.0/build/pure-min.css" integrity="sha384-nn4HPE8lTHyVtfCBi5yW9d20FjT8BJwUXyWZT9InLYax14RDjBj46LmSztkmNP9w" crossorigin="anonymous">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script src="/static/ui.js"></script>
+
+  <style>
+  body {
+    background-color: white;
+    color: black;
+  }
+  .browserchooser {
+    padding: 20px;
+  }
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: 0px;
+  }
+  select.choices__input.is-hidden {
+    clip: rect(0,0,0,0) !important;
+    position: absolute !important;
+    display: block !important;
+  }
+  .bicon {
+    width: 24px;
+    height: 16px;
+    display: inline-block;
+  }
+  .bicon img {
+    vertical-align: middle;
+    padding-right: 8px;
+  }
+  .browser-dropdown {
+    overflow: visible;
+  }
+  .choices__input, input.choices__input:focus {
+    border-radius: 0px !important;
+    border-color: inherit;
+    border-style: none;
+  }
+  input, label {
+    font-size: 18px;
+  }
+  button {
+    font-size: 14px;
+  }
+
+</style>
+
+</head>
+
+
+<body>
+  <div class="pure-g">
+    <div class="browserpad {{ 'pure-u-1-5' if not view_url else ''}}"></div>
+    <div class="browserchooser {{ 'pure-u-2-5' if not view_url else 'pure-u-1-5' }}">
+        <form class="pure-form" onsubmit="go(event)">
+          <div class="pure-g">
+            <div class="pure-u-2-24"></div>
+            <div class="pure-u-2-20">
+              <h3 class="pure-u-20-24">oldweb.today</h3>
+              <h1 class="pure-u-20-24">Browser Emulator</h1>
+            </div>
+          </div>
+          <fieldset>
+            <div class="pure-control-group">
+              <label class="" for="browser-dropdown">Browser</label>
+              <div class="browser-dropdown">
+                <select class="" id="browsers" name="browsers" data-init-value="{{ image_name | default('') }}"required></select>
+              </div>
+            </div>
+
+            <div class="pure-control-group">
+              <label class="" for="url">URL</label>
+              <input type="text" id="url" name="url" class="pure-input-1" value="{{ url | default('') }}" placeholder="http://" required>
+            </div>
+
+            <div class="pure-control-group" style="display: none">
+              <label for="datetime-dropdown">Date</label>
+              <input type="text" id="datetime" name="datetime" class=""/>
+            </div>
+          </fieldset>
+
+          <button type="submit" class="pure-button pure-button-primary">Run Browser</button>
+        </form>
+    </div>
+    <div class="pure-u-4-5">
+      <iframe frameborder="0" seamless="true" src="{{ view_url | default('')}}"></iframe>
+    </div>
+  </div>
+</body>
+</html>
+

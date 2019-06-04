@@ -11,3 +11,5 @@ LABEL testlabel.name=busy
 LABEL testlabel.caps.small=1
 LABEL testlabel.caps.test=2
 
+LABEL test.isbusybox=1
+

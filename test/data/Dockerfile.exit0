@@ -6,3 +6,5 @@ CMD sh -c 'exit 0'
 LABEL testlabel.name=testing-exit0
 LABEL testlabel.data="Other Data"
 
+LABEL test.isbox=box
+

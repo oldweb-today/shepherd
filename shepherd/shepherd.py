@@ -405,13 +405,30 @@ class Shepherd(object):
             image = overrides.get(spec['name'], spec['image'])
             image_list.append(image)
             if image != spec['image']:
-                if not self.is_ancestor_of(image, spec['image']):
+                label = spec.get('image_label')
+                if not label:
+                    raise InvalidParam({'error': 'invalid_image_param',
+                                        'details': 'no image_label to allow overrides'})
+
+                if not self.image_has_label(image, label):
                     raise InvalidParam({'error': 'invalid_image_param',
                                         'image_passed': image,
-                                        'image_expected': spec['image']
+                                        'label_expected': label
                                        })
 
         return image_list
+
+    def image_has_label(self, image_name, label):
+        try:
+            image = self.docker.images.get(image_name)
+        except docker.errors.ImageNotFound:
+            return False
+
+        if '=' in label:
+            name, value = label.split('=', 1)
+            return image.labels.get(name) == value
+        else:
+            return image.labels.get(label, '') != ''
 
     def is_ancestor_of(self, name, ancestor):
         name = self.full_tag(name)

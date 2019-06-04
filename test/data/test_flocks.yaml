@@ -4,6 +4,7 @@ containers:
   - name: base-alpine
     image: test-shepherd/alpine
     set_user_params: true
+    image_label: test.isalpine
 
   - name: busybox
     image: test-shepherd/busybox
@@ -25,6 +26,7 @@ name: test_b
 containers:
   - name: box
     image: test-shepherd/busybox
+    image_label: test.isbox=box
 
   - name: box-2
     image: test-shepherd/busybox

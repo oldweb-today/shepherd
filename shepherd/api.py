@@ -2,7 +2,7 @@ from shepherd.schema import FlockIdSchema, FlockRequestOptsSchema, GenericRespon
 from shepherd.schema import LaunchResponseSchema, LaunchContainerSchema, FlockRequestDataSchema
 from shepherd.shepherd import FlockRequest
 
-from flask import Response, request
+from flask import Response, request, render_template
 import json
 
 
@@ -254,4 +254,18 @@ def init_routes(app):
 
         return app.render(reqid)
 
+    @app.route('/')
+    def home():
+        return render_template('index.html')
 
+    @app.route('/view-controls/<image_name>/<path:url>')
+    def view_controls(image_name, url):
+        if request.query_string:
+            url += '?' + request.query_string.decode('utf-8')
+
+        view_url = '/view/' + image_name + '/' + url
+
+        return render_template('index.html',
+                               url=url,
+                               image_name=image_name,
+                               view_url=view_url)

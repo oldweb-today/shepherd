@@ -60,6 +60,14 @@ class TestShepherd(object):
         assert shepherd.is_ancestor_of('test-shepherd/invalid', 'busybox') == False
         assert shepherd.is_ancestor_of('test-shepherd/invalid', 'busybox-invalid') == False
 
+    def test_has_label(self, shepherd):
+        assert shepherd.image_has_label('test-shepherd/busybox', 'test.isbusybox')
+        assert shepherd.image_has_label('test-shepherd/busybox', 'test.isbusybox=1')
+
+    def test_not_has_label(self, shepherd):
+        assert shepherd.image_has_label('test-shepherd/invalid', 'test.isbusybox=2') == False
+        assert shepherd.image_has_label('test-shepherd/busybox', 'test.islapine') == False
+
     def test_start(self, shepherd, docker_client):
         env = {'ANOTHER': 'VALUE'}
         flock = shepherd.start_flock(self.reqid, environ=env)

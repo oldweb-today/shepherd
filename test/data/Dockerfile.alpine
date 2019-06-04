@@ -6,3 +6,5 @@ LABEL testlabel.name=alpine
 LABEL testlabel.caps.test=3
 
 LABEL testlabel.extra=bigvalue
+
+LABEL test.isalpine=true

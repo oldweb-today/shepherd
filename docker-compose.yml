@@ -10,6 +10,11 @@ services:
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
+            - ./shepherd/static/:/app/shepherd/static/
+            - ./shepherd/templates/:/app/shepherd/templates/
+
+        environment:
+            - DEBUG=1
 
         ports:
             - 9020:9020

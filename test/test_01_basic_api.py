@@ -12,7 +12,7 @@ def pool(app):
 class TestBasicApi:
     def test_api(self):
         res = self.client.get('/api')
-        assert 'GenericResponseSchema' in res.data.decode('utf-8')
+        assert 'GenericResponse' in res.data.decode('utf-8')
 
     def test_request_invalid_flock(self):
         res = self.client.post('/api/flock/request/foo', json={'user_params': {'a': 'b'}})
@@ -27,8 +27,8 @@ class TestBasicApi:
     def test_request_invalid_overrides(self):
         res = self.client.post('/api/flock/request/test_b', json={'overrides': {'box': 'test-shepherd/alpine'}})
         assert res.json == {'error': 'invalid_image_param',
-                            'image_expected': 'test-shepherd/busybox',
-                            'image_passed': 'test-shepherd/alpine'}
+                            'image_passed': 'test-shepherd/alpine',
+                            'label_expected': 'test.isbox=box'}
 
     def test_request_environ_allow_bool(self):
         res = self.client.post('/api/flock/request/test_b', json={'user_params': {'a': 'b'},

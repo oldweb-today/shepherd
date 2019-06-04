@@ -22,7 +22,6 @@ class TestPersistPoolApi:
     def stop(self, reqid):
         res = self.client.post('/api/flock/remove/' + reqid)
         data = res.json or {}
-        print('REM', data)
         return data
 
     def do_req(self, persist_pool, params):
@@ -32,7 +31,7 @@ class TestPersistPoolApi:
     def do_req_and_start(self, persist_pool, **params):
         res = self.do_req(persist_pool, params)
         if 'error' in res:
-            return res
+            return res, None
 
         reqid = res['reqid']
         res = self.client.post('/api/flock/start/' + reqid)
