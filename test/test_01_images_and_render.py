@@ -64,6 +64,19 @@ class TestImages:
 
         assert res.json['reqid']
 
+    def test_view_controls(self):
+        res = self.client.get('/view-controls/alpine-derived/1996/http://example.com/path?foo=bar')
+
+        text = res.data.decode('utf-8')
+
+        assert 'Controls for /view/alpine-derived/1996/http://example.com/path?foo=bar' in text
+
+    def test_view_home(self):
+        res = self.client.get('/')
+
+        text = res.data.decode('utf-8')
+
+        assert 'Controls for home' in text
 
     def test_view(self, docker_client, redis):
         res = self.client.get('/view/alpine-derived/1996/http://example.com/path?foo=bar')

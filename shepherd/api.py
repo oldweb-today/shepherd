@@ -256,7 +256,7 @@ def init_routes(app):
 
     @app.route('/')
     def home():
-        return render_template('index.html')
+        return render_template(app.controls_template)
 
     @app.route('/view-controls/<image_name>/<path:url>')
     def view_controls(image_name, url):
@@ -265,7 +265,7 @@ def init_routes(app):
 
         view_url = '/view/' + image_name + '/' + url
 
-        return render_template('index.html',
+        return render_template(app.controls_template,
                                url=url,
                                image_name=image_name,
                                view_url=view_url)

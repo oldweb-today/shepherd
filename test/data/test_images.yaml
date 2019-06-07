@@ -9,6 +9,7 @@ images:
 view:
   image_prefix: test-shepherd/
   template: test-template.html
+  controls_template: test-controls.html
   override: base-alpine
   default_flock: test_1
 

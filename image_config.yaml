@@ -10,6 +10,7 @@ images:
 view:
   image_prefix: oldwebtoday/
   template: browser_embed.html
+  controls_template: index.html
   override: browser
   default_flock: browsers
 

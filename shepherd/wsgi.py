@@ -65,6 +65,7 @@ class APIFlask(Flask):
 
         view = config.get('view', {})
         self.error_template = view.get('error_template') or 'error.html'
+        self.controls_template = view.get('controls_template')
         self.view_template = view.get('template')
         self.view_image_prefix = view.get('image_prefix')
         self.view_override_image = view.get('override')
