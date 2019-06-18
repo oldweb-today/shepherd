@@ -4,7 +4,7 @@ default_pool: fixed-pool
 pools:
   - name: fixed-pool
     type: fixed
-    duration: 300
+    duration: 3600
     max_size: 10
     expire_check: 30
     number_ttl: 30

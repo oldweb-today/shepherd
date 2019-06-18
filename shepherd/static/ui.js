@@ -64,29 +64,76 @@ function init() {
 	var placeholderItem = choices._getTemplate("placeholder", "Choose a Browser...");
 	choices.itemList.append(placeholderItem);
 
+    window.choices = choices;
+    loadChoices(true);
+
+    if (window.timestamp !== undefined) {
+        flatpickr("#datetime", {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i:S",
+            enableSeconds: true,
+            allowInput: true,
+            defaultDate: tsToDate(window.timestamp)
+        });
+    }
+}
+
+function loadChoices(setValue) {
 	fetch("/api/images/browser").then(function(response) {
 		return response.json();
 	}).then(function(data) {
+        choices.clearChoices();
 		choices.setChoices(parseData(data), 'value', 'label', false);
 
-		// set selection if value is set
-		var value = document.querySelector("#browsers").getAttribute("data-init-value");
-		if (value) {
-			choices.setChoiceByValue(value);
-		}
+        if (setValue) {
+          // set selection if value is set
+          var value = document.querySelector("#browsers").getAttribute("data-init-value");
+          if (value) {
+              choices.setChoiceByValue(value);
+          }
+        }
 	});
 }
+
+
+function tsToDate(ts) {
+  if (ts.length < 14) {
+      return new Date();
+  }
+
+  var datestr =
+    ts.substring(0, 4) +
+    '-' +
+    ts.substring(4, 6) +
+    '-' +
+    ts.substring(6, 8) +
+    'T' +
+    ts.substring(8, 10) +
+    ':' +
+    ts.substring(10, 12) +
+    ':' +
+    ts.substring(12, 14) +
+    '-00:00';
+
+  return new Date(datestr);
+};
+
 
 document.addEventListener("DOMContentLoaded", init);
 
 function go(event) {
 	event.preventDefault();
-	var path = document.querySelector("#browsers").value + "/" + document.querySelector("#url").value;
+	var path = document.querySelector("#browsers").value + "/";
+    var dt = document.querySelector("#datetime");
+    if (dt) {
+        path += dt.value.replace(/[^\d]/g, '') + "/";
+    }
+    path += document.querySelector("#url").value;
 	document.querySelector("iframe").src = "/view/" + path;
 	window.history.replaceState({}, path, "/view-controls/" + path);
 
-	document.querySelector(".browserchooser").classList.add("pure-u-1-5");
-	document.querySelector(".browserchooser").classList.remove("pure-u-2-5");
-	document.querySelector(".browserpad").classList.remove("pure-u-1-5");
+	document.querySelector(".browserchooser").classList.add("pure-u-1-3");
+	document.querySelector(".browserchooser").classList.remove("pure-u-2-3");
+	document.querySelector(".browserpad").classList.remove("pure-u-1-3");
 	return false;
 }

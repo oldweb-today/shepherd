@@ -2,7 +2,7 @@ from shepherd.schema import FlockIdSchema, FlockRequestOptsSchema, GenericRespon
 from shepherd.schema import LaunchResponseSchema, LaunchContainerSchema, FlockRequestDataSchema
 from shepherd.shepherd import FlockRequest
 
-from flask import Response, request, render_template
+from flask import Response, request
 import json
 
 
@@ -244,7 +244,7 @@ def init_routes(app):
         if not reqid:
             return app.render_error(res)
 
-        return app.render(reqid)
+        return app.render_browser(reqid)
 
 
     @app.route('/attach/<reqid>')
@@ -252,11 +252,11 @@ def init_routes(app):
         if not app.shepherd.is_valid_flock(reqid):
             return app.render_error({'error': 'invalid_reqid'})
 
-        return app.render(reqid)
+        return app.render_browser(reqid)
 
     @app.route('/')
     def home():
-        return render_template(app.controls_template)
+        return app.render_controls()
 
     @app.route('/view-controls/<image_name>/<path:url>')
     def view_controls(image_name, url):
@@ -265,7 +265,6 @@ def init_routes(app):
 
         view_url = '/view/' + image_name + '/' + url
 
-        return render_template(app.controls_template,
-                               url=url,
-                               image_name=image_name,
-                               view_url=view_url)
+        return app.render_controls(url=url,
+                                   image_name=image_name,
+                                   view_url=view_url)

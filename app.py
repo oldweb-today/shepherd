@@ -30,7 +30,7 @@ def main():
     shepherd = Shepherd(redis, NETWORK_NAME)
     shepherd.load_flocks(FLOCKS)
 
-    return create_app(shepherd,  POOL_CONFIG_FILE, IMAGE_CONFIG_FILE)
+    return create_app(shepherd, POOL_CONFIG_FILE, IMAGE_CONFIG_FILE)
 
 
 application = main()

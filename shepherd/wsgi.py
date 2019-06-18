@@ -37,6 +37,8 @@ class APIFlask(Flask):
 
         name = name or __name__
 
+        self.include_datetime = (os.environ.get('PROXY_HOST') != None)
+
         self._init_api()
 
         super(APIFlask, self).__init__(name, *args, **kwargs)
@@ -71,13 +73,17 @@ class APIFlask(Flask):
         self.view_override_image = view.get('override')
         self.view_default_flock = os.environ.get('DEFAULT_FLOCK', view.get('default_flock', ''))
 
-    def init_request_params(self, url):
+    def parse_url_ts(self, url):
+        timestamp = ''
         m = self.MATCH_TS.match(url)
         if m:
             timestamp = m.group(1)
             url = m.group(2)
-        else:
-            timestamp = ''
+
+        return timestamp, url
+
+    def init_request_params(self, url):
+        timestamp, url = self.parse_url_ts(url)
 
         env = {
                'URL': url,
@@ -100,10 +106,19 @@ class APIFlask(Flask):
 
         return self.get_pool().request(self.view_default_flock, opts)
 
-    def render(self, reqid):
+    def render_browser(self, reqid):
         return render_template(self.view_template,
                                reqid=reqid,
                                environ=os.environ)
+
+    def render_controls(self, url='', image_name='', view_url=''):
+        timestamp, url = self.parse_url_ts(url)
+        return render_template(self.controls_template,
+                               url=url,
+                               timestamp=timestamp,
+                               image_name=image_name,
+                               view_url=view_url,
+                               include_datetime=self.include_datetime)
 
     def render_error(self, error_info):
         print(error_info)
