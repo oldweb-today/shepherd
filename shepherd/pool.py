@@ -109,7 +109,8 @@ class LaunchAllPool(object):
 
             self._mark_expired(reqid)
 
-            self.redis.expire(self.REQ_TO_POOL + reqid, self.duration)
+            #self.redis.expire(self.REQ_TO_POOL + reqid, self.duration)
+            self.redis.delete(self.REQ_TO_POOL + reqid)
 
         return res
 
