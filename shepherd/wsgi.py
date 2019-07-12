@@ -66,12 +66,18 @@ class APIFlask(Flask):
             self.imageinfos[name] = info
 
         view = config.get('view', {})
-        self.error_template = view.get('error_template') or 'error.html'
-        self.controls_template = view.get('controls_template')
-        self.view_template = view.get('template')
-        self.view_image_prefix = view.get('image_prefix')
-        self.view_override_image = view.get('override')
-        self.view_default_flock = os.environ.get('DEFAULT_FLOCK', view.get('default_flock', ''))
+
+        def load_value(name, default=''):
+            value = view.get(name) or default
+            return os.path.expandvars(value)
+
+        self.error_template = load_value('error_template', 'error.html')
+        self.home_template = load_value('home_template')
+        self.controls_template = load_value('controls_template')
+        self.view_template = load_value('view_template')
+        self.view_image_prefix = load_value('image_prefix')
+        self.view_override_image = load_value('override')
+        self.view_default_flock = os.environ.get('DEFAULT_FLOCK', load_value('default_flock'))
 
     def parse_url_ts(self, url):
         timestamp = ''
@@ -82,29 +88,33 @@ class APIFlask(Flask):
 
         return timestamp, url
 
-    def init_request_params(self, url):
-        timestamp, url = self.parse_url_ts(url)
-
+    def init_request_env(self, user_params):
         env = {
-               'URL': url,
-               'TIMESTAMP': timestamp,
+               'URL': user_params.get('url', ''),
+               'TIMESTAMP': user_params.get('timestamp', ''),
                'VNC_PASS': base64.b64encode(os.urandom(21)).decode('utf-8'),
               }
 
-        user_params = {'URL': url,
-                       'TIMESTAMP': timestamp}
+        idle_timeout = os.environ.get('IDLE_TIMEOUT')
+        if idle_timeout:
+            env['IDLE_TIMEOUT'] = idle_timeout
 
-        return env, user_params
+        return env
 
-    def do_request(self, image_name, url):
+    def do_request_url_ts(self, image_name, url):
+       return self.do_request(image_name, user_params=user_params)
+
+    def do_request(self, image_name, user_params=None, flock=None):
+        user_params = user_params or {}
+        flock = flock or self.view_default_flock
         full_image = self.view_image_prefix + image_name
 
         opts = {}
-        opts['environ'], opts['user_params'] = self.init_request_params(url)
+        opts['environ'] = self.init_request_env(user_params)
+        opts['user_params'] = user_params
         opts['overrides'] = {self.view_override_image: full_image}
 
-
-        return self.get_pool().request(self.view_default_flock, opts)
+        return self.get_pool().request(flock, opts)
 
     def render_browser(self, reqid):
         return render_template(self.view_template,
@@ -113,7 +123,7 @@ class APIFlask(Flask):
 
     def render_controls(self, url='', image_name='', view_url=''):
         timestamp, url = self.parse_url_ts(url)
-        return render_template(self.controls_template,
+        return render_template(self.controls_template if url else self.home_template,
                                url=url,
                                timestamp=timestamp,
                                image_name=image_name,

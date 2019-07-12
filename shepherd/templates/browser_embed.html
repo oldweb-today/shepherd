@@ -2,13 +2,13 @@
 <html>
 
 <head>
-<link href="/static/default.css" rel="stylesheet"/>
+<link href="/static_base/default.css" rel="stylesheet"/>
 
 {% if css %}
 <link href="{{ css }}" rel="stylesheet"/>
 {% endif %}
 
-<script src="/static/shepherd-client.bundle.js"></script>
+<script src="/static_base/shepherd-client.bundle.js"></script>
 <script>
 InitBrowserDefault("{{ reqid }}", {"id": "#browser",
                                    "inactiveSecs": {{ environ.INACTIVE_HIDE_TIMEOUT | default(0) }},

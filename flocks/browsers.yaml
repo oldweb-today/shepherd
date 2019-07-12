@@ -26,7 +26,8 @@ containers:
       DISPLAY: ':99'
       PULSE_SERVER: '/tmp/.X11-unix/pulse-socket'
 
-      PROXY_HOST: ''
-      PROXY_CA_FILE: ''
-
+      PROXY_HOST: '${PROXY_HOST}'
+      PROXY_PORT: '${PROXY_PORT}'
+      PROXY_CA_URL: '${PROXY_CA_URL}'
+      PROXY_CA_FILE: '${PROXY_CA_FILE}'
 

@@ -66,16 +66,19 @@ class LaunchAllPool(object):
         res = self.shepherd.request_flock(flock_name, req_opts)
 
         if 'reqid' in res:
-            self.redis.set(self.REQ_TO_POOL + res['reqid'], self.name)
+            self.redis.set(self.REQ_TO_POOL + res['reqid'], self.name,
+                           ex=self.shepherd.DEFAULT_REQ_TTL)
 
         return res
 
     def _mark_wait_duration(self, reqid, value=1):
         self.redis.set(self.req_key + reqid, value, ex=self.duration)
+        self.redis.expire(self.REQ_TO_POOL + reqid, self.duration)
 
     def _mark_expired(self, reqid):
         logger.debug('Mark Expired: ' + reqid)
         self.redis.delete(self.req_key + reqid)
+        self.redis.delete(self.REQ_TO_POOL + reqid)
 
     def start_deferred_container(self, reqid, image_name):
         return self.shepherd.start_deferred_container(reqid=reqid,
@@ -93,6 +96,7 @@ class LaunchAllPool(object):
 
             self._mark_wait_duration(reqid)
 
+
         return res
 
     def remove(self, reqid, **kwargs):
@@ -104,8 +108,6 @@ class LaunchAllPool(object):
             self.remove_running(reqid)
 
             self._mark_expired(reqid)
-
-            self.redis.delete(self.REQ_TO_POOL + reqid)
 
         return res
 

@@ -10,7 +10,7 @@ services:
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-            - ./shepherd/static/:/app/shepherd/static/
+            - ./shepherd/static_base/:/app/shepherd/static_base/
             - ./shepherd/templates/:/app/shepherd/templates/
 
         environment:
