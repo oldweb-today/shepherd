@@ -54,6 +54,7 @@ class LaunchAllPool(object):
             self.network_pool = CachedNetworkPool(shepherd.docker,
                                                   redis=self.redis,
                                                   network_templ=self.POOL_NETWORK_TEMPL % self.name,
+                                                  network_label=shepherd.network_pool.network_label,
                                                   max_size=network_pool_size)
 
         self.running = True
@@ -73,12 +74,11 @@ class LaunchAllPool(object):
 
     def _mark_wait_duration(self, reqid, value=1):
         self.redis.set(self.req_key + reqid, value, ex=self.duration)
-        self.redis.expire(self.REQ_TO_POOL + reqid, self.duration)
+        self.redis.set(self.REQ_TO_POOL + reqid, self.name)
 
     def _mark_expired(self, reqid):
         logger.debug('Mark Expired: ' + reqid)
-        if self.redis.delete(self.req_key + reqid) > 0:
-            self.redis.delete(self.REQ_TO_POOL + reqid)
+        self.redis.delete(self.req_key + reqid)
 
     def start_deferred_container(self, reqid, image_name):
         return self.shepherd.start_deferred_container(reqid=reqid,
@@ -108,6 +108,8 @@ class LaunchAllPool(object):
             self.remove_running(reqid)
 
             self._mark_expired(reqid)
+
+            self.redis.expire(self.REQ_TO_POOL + reqid, self.duration)
 
         return res
 
@@ -338,7 +340,11 @@ class PersistentPool(LaunchAllPool):
             pos = self._push_wait(reqid)
             return {'queue': pos - 1}
 
-        return super(PersistentPool, self).start(reqid, environ=environ)
+        res = super(PersistentPool, self).start(reqid, environ=environ)
+
+        self.redis.persist(self.REQ_TO_POOL + reqid)
+
+        return res
 
     def _is_persist(self, reqid):
         return self.redis.sismember(self.pool_all_set, reqid)
@@ -455,12 +461,10 @@ class PersistentPool(LaunchAllPool):
 
         # stop or remove
         if kwargs.get('stop'):
-            print('stopping')
             res = self.shepherd.stop_flock(reqid)
         else:
             res = super(PersistentPool, self).remove(reqid, grace_time=self.grace_time)
 
-        print(res)
         # only attempt to restart next if was currently running
         # and stopping succeeded
         if num_removed and 'error' not in res and not kwargs.get('no_replace'):
