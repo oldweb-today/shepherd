@@ -34,8 +34,8 @@ class TestDeferred(object):
         res = self.client.post('/api/flock/start_deferred/{0}/box-1'.format(self.reqid))
         assert res.json == {'error': 'invalid_deferred', 'flock': 'test_deferred'}
 
-    def test_deferred_flock_stop(self, redis):
-        res = self.client.post('/api/flock/stop/{0}'.format(self.reqid))
+    def test_deferred_flock_remove(self, redis):
+        res = self.client.post('/api/flock/remove/{0}'.format(self.reqid))
         assert res.json == {'success': True}
         assert not redis.exists('reqp:' + self.reqid)
 
@@ -61,7 +61,7 @@ class TestDeferred(object):
         # box-1 not yet launched, no id
         assert 'id' not in res.json['containers']['box-1']
 
-        res = self.client.post('/api/flock/stop/{0}'.format(self.reqid))
+        res = self.client.post('/api/flock/remove/{0}'.format(self.reqid))
         assert res.json == {'success': True}
 
     def test_deferred_override(self):
