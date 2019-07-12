@@ -77,8 +77,8 @@ class LaunchAllPool(object):
 
     def _mark_expired(self, reqid):
         logger.debug('Mark Expired: ' + reqid)
-        self.redis.delete(self.req_key + reqid)
-        self.redis.delete(self.REQ_TO_POOL + reqid)
+        if self.redis.delete(self.req_key + reqid) > 0:
+            self.redis.delete(self.REQ_TO_POOL + reqid)
 
     def start_deferred_container(self, reqid, image_name):
         return self.shepherd.start_deferred_container(reqid=reqid,
