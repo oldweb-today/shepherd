@@ -2,7 +2,7 @@ from shepherd.schema import FlockIdSchema, FlockRequestOptsSchema, GenericRespon
 from shepherd.schema import LaunchResponseSchema, LaunchContainerSchema, FlockRequestDataSchema
 from shepherd.shepherd import FlockRequest
 
-from flask import Response, request
+from flask import Response, request, jsonify
 import json
 
 
@@ -215,29 +215,24 @@ def init_routes(app):
 
     @app.route('/api/images/<image_group>', methods=['GET'])
     def get_images(image_group):
-        res = app.imageinfos[image_group].list_images(request.args)
-        return Response(json.dumps(res), mimetype='application/json')
-
+        return jsonify(app.imageinfos[image_group].list_images(request.args))
 
     @app.route('/api', methods=['GET'])
     def print_api():
         return Response(app.apispec.to_yaml(), mimetype='text/yaml')
 
-
     @app.route('/api/request/<image_name>/<path:url>')
     def api_image_request(image_name, url):
-        if request.query_string:
-            url += '?' + request.query_string.decode('utf-8')
+        return jsonify(do_request_url_ts(app, image_name, url))
 
-        res = app.do_request(image_name, url=url)
-        return Response(json.dumps(res), mimetype='application/json')
+    @app.route('/api/request/<image_name>', methods=['POST'])
+    def api_image_request_params(image_name):
+        return jsonify(app.do_request(image_name,
+                                      user_params=request.json or {}))
 
     @app.route('/view/<image_name>/<path:url>')
     def view_request(image_name, url):
-        if request.query_string:
-            url += '?' + request.query_string.decode('utf-8')
-
-        res = app.do_request(image_name, url=url)
+        res = do_request_url_ts(app, image_name, url)
 
         reqid = res.get('reqid')
 
@@ -258,7 +253,7 @@ def init_routes(app):
     def home():
         return app.render_controls()
 
-    @app.route('/view-controls/<image_name>/<path:url>')
+    @app.route('/browse/<image_name>/<path:url>')
     def view_controls(image_name, url):
         if request.query_string:
             url += '?' + request.query_string.decode('utf-8')
@@ -268,3 +263,14 @@ def init_routes(app):
         return app.render_controls(url=url,
                                    image_name=image_name,
                                    view_url=view_url)
+
+
+# ============================================================================
+def do_request_url_ts(app, image_name, url):
+    if request.query_string:
+        url += '?' + request.query_string.decode('utf-8')
+
+    timestamp, url = app.parse_url_ts(url)
+    user_params = {'url': url, 'timestamp': timestamp}
+    return app.do_request(image_name, user_params=user_params)
+

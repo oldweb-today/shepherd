@@ -24,7 +24,7 @@ class PyTest(TestCommand):
         import pytest
         import sys
         import os
-        errcode = pytest.main(['--doctest-module', './shepherd', '--cov', 'shepherd', '-v', 'test/'])
+        errcode = pytest.main(['--doctest-modules', './shepherd', '--cov', 'shepherd', '-v', 'test/'])
         sys.exit(errcode)
 
 

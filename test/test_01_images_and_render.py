@@ -64,8 +64,14 @@ class TestImages:
 
         assert res.json['reqid']
 
+    def test_image_api_post(self, docker_client, redis):
+        res = self.client.post('/api/request/alpine-derived', json={'url': 'http://example.com/path?foo=bar',
+                                                                    'timestamp': '1996'})
+
+        assert res.json['reqid']
+
     def test_view_controls(self):
-        res = self.client.get('/view-controls/alpine-derived/1996/http://example.com/path?foo=bar')
+        res = self.client.get('/browse/alpine-derived/1996/http://example.com/path?foo=bar')
 
         text = res.data.decode('utf-8')
 
@@ -76,7 +82,7 @@ class TestImages:
 
         text = res.data.decode('utf-8')
 
-        assert 'Controls for home' in text
+        assert 'View for home' in text
 
     def test_view(self, docker_client, redis):
         res = self.client.get('/view/alpine-derived/1996/http://example.com/path?foo=bar')
@@ -106,8 +112,8 @@ class TestImages:
 
         params = redis.hgetall('up:{0}'.format(info['ip']))
         assert params == {'reqid': self.reqid,
-                          'TIMESTAMP': '1996',
-                          'URL': 'http://example.com/path?foo=bar'}
+                          'timestamp': '1996',
+                          'url': 'http://example.com/path?foo=bar'}
 
     def test_attach(self):
         res = self.client.get('/attach/' + self.reqid)

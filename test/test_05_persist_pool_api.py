@@ -60,7 +60,7 @@ class TestPersistPoolApi:
             assert persist_pool.reqid_starts[reqid] == 2
             assert persist_pool.reqid_stops[reqid] == 2
 
-        sleep_try(0.2, 10.0, assert_done)
+        sleep_try(0.2, 20.0, assert_done)
 
         containers = res['containers']
         for container in containers.values():
@@ -164,5 +164,5 @@ class TestPersistPoolApi:
 
             assert persist_pool.reqid_starts == persist_pool.reqid_stops
 
-        sleep_try(0.2, 35.0, assert_done)
+        sleep_try(0.2, 30.0, assert_done)
 

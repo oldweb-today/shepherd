@@ -9,8 +9,9 @@ images:
 
 view:
   image_prefix: oldwebtoday/
-  template: browser_embed.html
-  controls_template: index.html
+  view_template: '${VIEW_TEMPLATE}'
+  home_template: '${HOME_TEMPLATE}'
+  controls_template: '${CONTROLS_TEMPLATE}'
   override: browser
   default_flock: browsers
 

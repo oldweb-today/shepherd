@@ -130,7 +130,7 @@ function go(event) {
     }
     path += document.querySelector("#url").value;
 	document.querySelector("iframe").src = "/view/" + path;
-	window.history.replaceState({}, path, "/view-controls/" + path);
+	window.history.replaceState({}, path, "/browse/" + path);
 
 	document.querySelector(".browserchooser").classList.add("pure-u-1-3");
 	document.querySelector(".browserchooser").classList.remove("pure-u-2-3");
