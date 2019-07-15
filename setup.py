@@ -37,6 +37,9 @@ setup(
     author_email='ikreymer@gmail.com',
     license='Apache 2.0',
     packages=find_packages(exclude=['test']),
+    package_data = {'shepherd': ['static_base/*.*',
+                                 'templates/*',
+                                 '*.yaml']},
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     provides=[
