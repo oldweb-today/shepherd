@@ -42,7 +42,8 @@ class TestImages:
             'id': 'alpine-derived',
             'name': 'alpine-derived',
             'caps': 'test',
-            'caps.test': '4'
+            'caps.test': '4',
+            'data': 'data:<html>test</html>'
         }
 
 
@@ -58,6 +59,27 @@ class TestImages:
         assert set(res.json.keys()) == set(['alpine'])
 
         assert res.json['alpine']['extra'] == 'bigvalue'
+
+    def test_images_get_field_no_mime(self):
+        res = self.client.get('/api/images/test-images/alpine-derived/data')
+
+        assert res.headers['Content-Type'] == 'text/plain; charset=utf-8'
+
+        assert res.data == b'<html>test</html>'
+
+    def test_images_get_field_with_mime(self):
+        res = self.client.get('/api/images/test-images/alpine-derived/data_mime')
+
+        assert res.headers['Content-Type'] == 'text/html; charset=utf-8'
+
+        assert res.data == b'<html>test</html>'
+
+    def test_images_get_field_with_mime_b64(self):
+        res = self.client.get('/api/images/test-images/alpine-derived/data_mime_b64')
+
+        assert res.headers['Content-Type'] == 'text/html; charset=utf-8'
+
+        assert res.data == b'<html>test</html>'
 
     def test_image_api(self, docker_client, redis):
         res = self.client.get('/api/request/alpine-derived/1996/http://example.com/path?foo=bar')

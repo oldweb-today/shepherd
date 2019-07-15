@@ -5,6 +5,8 @@ images:
     image_prefix: test-shepherd/
     exclude_labels:
       - extra
+      - data_mime_b64
+      - data_mime
 
 view:
   image_prefix: test-shepherd/

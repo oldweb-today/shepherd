@@ -4,6 +4,7 @@ from shepherd.shepherd import FlockRequest
 
 from flask import Response, request, jsonify
 import json
+import base64
 
 
 # ============================================================================
@@ -216,6 +217,32 @@ def init_routes(app):
     @app.route('/api/images/<image_group>', methods=['GET'])
     def get_images(image_group):
         return jsonify(app.imageinfos[image_group].list_images(request.args))
+
+    @app.route('/api/images/<image_group>/<iid>/<field>', methods=['GET'])
+    def get_image_field(image_group, iid, field):
+        images = app.imageinfos[image_group].list_images({'id': iid, 'include_all': True})
+        if not images:
+            return jsonify(error='image_not_found')
+
+        value = images.get(iid, {}).get(field)
+        if value is None:
+            return jsonify(error='field_not_found')
+
+        if not value.startswith('data:'):
+            return Response(value, mimetype='text/plain')
+
+        value = value[5:]
+        parts = value.split(',', 1)
+        if len(parts) == 1:
+            return Response(value, mimetype='text/plain')
+
+        value = parts[1]
+        parts = parts[0].split(';')
+        mimetype = parts[0]
+        if len(parts) == 2 and parts[1] == 'base64':
+            value = base64.b64decode(value)
+
+        return Response(value, mimetype=mimetype)
 
     @app.route('/api', methods=['GET'])
     def print_api():

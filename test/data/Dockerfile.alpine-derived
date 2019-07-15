@@ -6,3 +6,8 @@ CMD sh -c 'sleep 300 & wait'
 LABEL testlabel.name=alpine-derived
 LABEL testlabel.caps.test=4
 
+LABEL testlabel.data=data:<html>test</html>
+
+LABEL testlabel.data_mime=data:text/html,<html>test</html>
+
+LABEL testlabel.data_mime_b64=data:text/html;base64,PGh0bWw+dGVzdDwvaHRtbD4=

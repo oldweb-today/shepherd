@@ -35,6 +35,8 @@ function templateCallback(template) {
 
 		if (data.customProperties && data.customProperties.icon) {
 			content += `<span class="bicon"><img src="${data.customProperties.icon}"/></span>`;
+		} else if (data.customProperties && data.customProperties.id) {
+			content += `<span class="bicon"><img src="/api/images/browser/${data.customProperties.id}/icon"/></span>`;
 		} else {
 			content += `<span class="bicon"></span>`;
 		}
