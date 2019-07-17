@@ -69,7 +69,7 @@ class APIFlask(Flask):
 
         def load_value(name, default=''):
             value = view.get(name) or default
-            return os.path.expandvars(value)
+            return value
 
         self.error_template = load_value('error_template', 'error.html')
         self.home_template = load_value('home_template')

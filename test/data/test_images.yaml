@@ -10,7 +10,7 @@ images:
 
 view:
   image_prefix: test-shepherd/
-  view_template: test-view-template.html
+  view_template: ${VIEW_TEMPLATE}
   home_template: test-home.html
   controls_template: test-controls.html
   override: base-alpine

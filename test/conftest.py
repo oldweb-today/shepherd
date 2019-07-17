@@ -94,6 +94,8 @@ def shepherd(redis):
 @pytest.fixture(scope='module')
 def app(shepherd):
     with patch('shepherd.pool.get_pool_types', get_pool_types):
+        os.environ['VIEW_TEMPLATE'] = 'test-view-template.html'
+        os.environ['TEST_DURATION'] = '60.0'
         wsgi_app = create_app(shepherd, TEST_POOLS, TEST_IMAGES, template_folder=TEST_DIR)
 
     yield wsgi_app

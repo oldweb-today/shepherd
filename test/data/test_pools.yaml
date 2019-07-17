@@ -8,7 +8,7 @@ pools:
 
   - name: fixed-pool
     type: fixed
-    duration: 60.0
+    duration: ${TEST_DURATION}
     max_size: 3
     expire_check: 0.3
     wait_ping_ttl: 25.0

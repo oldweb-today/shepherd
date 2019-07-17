@@ -46,6 +46,9 @@ class TestImages:
             'data': 'data:<html>test</html>'
         }
 
+    def test_config(self, app):
+        assert app.view_template == 'test-view-template.html'
+        assert app.pools['fixed-pool'].duration == 60
 
     def test_images_query(self):
         res = self.client.get('/api/images/test-images?caps.small=1')

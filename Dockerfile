@@ -14,6 +14,7 @@ CMD python -u app.py
 
 ENV REDIS_BROWSER_URL=redis://redis/0 \
     IDLE_TIMEOUT=60 \
+    CONTAINER_DURATION=3600 \
     BROWSER_NET=shepherd_default \
     WEBRTC_HOST_IP=127.0.0.1 \
 \
