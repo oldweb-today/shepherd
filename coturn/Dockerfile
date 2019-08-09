@@ -2,7 +2,6 @@ FROM ubuntu:16.04
 
 
 ARG COTURN_VERSION=4.5.1.1
-ARG COTURN_VERSION=ffc661b66e175b14d44cc370315d6117500961fa
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     emacs-nox \
