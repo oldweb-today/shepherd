@@ -6,6 +6,3 @@
 	path = remote-desktop-server
 	url = https://github.com/humberthardy/remote-desktop-server.git
         branch = full-webrtc
-[submodule "coturn"]
-	path = coturn
-	url = https://github.com/coturn/coturn.git
