@@ -1,28 +1,30 @@
-FROM python:3.5.3
+FROM ubuntu:16.04
 
-WORKDIR /app
 
-COPY requirements.txt /app
+ARG COTURN_VERSION=4.5.1.1
+ARG COTURN_VERSION=ffc661b66e175b14d44cc370315d6117500961fa
 
-RUN pip install -r requirements.txt
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    emacs-nox \
+    build-essential \
+    libssl-dev sqlite3 \
+    libsqlite3-dev \
+    libevent-dev \
+    g++ \
+    libboost-dev \
+    libevent-dev \
+    git
 
-COPY . /app
 
-RUN python setup.py install
+RUN git clone https://github.com/coturn/coturn.git
 
-CMD python -u app.py
+WORKDIR coturn
 
-ENV REDIS_BROWSER_URL=redis://redis/0 \
-    IDLE_TIMEOUT=60 \
-    BROWSER_NET=shepherd_default \
-    WEBRTC_HOST_IP=127.0.0.1 \
-\
-    PROXY_HOST='' \
-    PROXY_PORT=8080 \
-    PROXY_CA_URL=http://wsgiprox/download/pem \
-    PROXY_CA_FILE=/tmp/proxy-ca.pem \
-\
-    HOME_TEMPLATE=shepherd.html \
-    CONTROLS_TEMPLATE=shepherd.html \
-    VIEW_TEMPLATE=browser_embed.html
+RUN git checkout $COTURN_VERSION && ./configure
+
+RUN make && make install
+
+RUN cp /coturn/examples/etc/*.pem .
+
+ENV PATH="/opt/bin64:${PATH}"
 
