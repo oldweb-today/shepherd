@@ -1,26 +1,35 @@
 version: '3.5'
 
 services:
-    shepherd:
-        image: oldwebtoday/shepherd:1.1.0
-        build: ./
-        
-        depends_on:
-            - redis
+  shepherd:
+    image: oldwebtoday/shepherd:1.1.0
+    build: ./
 
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
-            - ./shepherd/static_base/:/app/shepherd/static_base/
-            - ./shepherd/templates/:/app/shepherd/templates/
+    depends_on:
+    - redis
 
-        environment:
-            - DEBUG=1
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./shepherd/static_base/:/app/shepherd/static_base/
+    - ./shepherd/templates/:/app/shepherd/templates/
 
-        ports:
-            - 9020:9020
+    environment:
+    - DEBUG=1
+    - WEBRTC_STUN_SERVER=stun:h2.nfbonf.nfb.ca
+    - WEBRTC_TURN_REALM=h2.nfbonf.nfb.ca
+    - WEBRTC_TURN_REST_AUTH_SECRET=TURNSECRET
 
+    ports:
+    - 9020:9020
 
-    redis:
-        image: redis:3.2.4
+  coturn:
+    image: oldwebtoday/coturn:4.5.1.1
+    build: ./coturn/
+    command: "turnserver --verbose --external-ip=172.16.140.129 --relay-ip=172.16.140.129 --listening-ip=172.16.140.129 --realm=h2.nfbonf.nfb.ca --use-auth-secret --static-auth-secret=TURNSECRET --rest-api-separator=. --fingerprint"
+    network_mode: host  # due to port mapping
+
+  redis:
+    image: redis:3.2.4
+
 
 
