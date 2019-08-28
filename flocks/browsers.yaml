@@ -7,6 +7,7 @@ volumes:
 containers:
   - name: xserver
     image: oldwebtoday/vnc-webrtc-audio
+    external_network: '${BROWSER_NET}'
     ports:
       vnc_port: 6080
       cmd_port: 6082

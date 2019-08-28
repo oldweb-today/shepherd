@@ -12,7 +12,7 @@
 <script>
 InitBrowserDefault("{{ reqid }}", {"id": "#browser",
                                    "inactiveSecs": {{ environ.INACTIVE_HIDE_TIMEOUT | default(0) }},
-                                   "audio": "wait_for_click",
+                                   "audio": "1",
                                    "webrtc": true,
                                    "webrtcHostIP": "{{ environ.WEBRTC_HOST_IP | default('') }}"});
 </script>

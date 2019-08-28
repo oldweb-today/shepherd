@@ -37,7 +37,7 @@ class APIFlask(Flask):
 
         name = name or __name__
 
-        self.include_datetime = (os.environ.get('PROXY_HOST') != None)
+        self.include_datetime = not (not os.environ.get('PROXY_HOST'))
 
         self._init_api()
 

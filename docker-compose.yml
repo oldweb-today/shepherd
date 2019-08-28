@@ -25,8 +25,11 @@ services:
   coturn:
     image: oldwebtoday/coturn:4.5.1.1
     build: ./coturn/
-    command: "turnserver --verbose --external-ip=172.16.140.129 --relay-ip=172.16.140.129 --listening-ip=172.16.140.129 --realm=h2.nfbonf.nfb.ca --use-auth-secret --static-auth-secret=TURNSECRET --rest-api-separator=. --fingerprint"
-    network_mode: host  # due to port mapping
+    command: bash -x /tmp/run.sh
+
+    ports:
+    - 33478:33478
+    - 33479:33479
 
   redis:
     image: redis:3.2.4
