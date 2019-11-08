@@ -15,8 +15,8 @@ services:
 
     environment:
     - DEBUG=1
-    - WEBRTC_STUN_SERVER=stun:h2.nfbonf.nfb.ca
-    - WEBRTC_TURN_REALM=h2.nfbonf.nfb.ca
+    - WEBRTC_STUN_SERVER=stun:stun.l.google.com:19302
+    - WEBRTC_TURN_REALM=localhost:33478
     - WEBRTC_TURN_REST_AUTH_SECRET=TURNSECRET
 
     ports:
