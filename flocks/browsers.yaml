@@ -17,12 +17,6 @@ containers:
     environment:
       IDLE_TIMEOUT: '${IDLE_TIMEOUT}'
       WEBRTC_TURN_REST_AUTH_SECRET: '${WEBRTC_TURN_REST_AUTH_SECRET}'
-      WEBRTC_TURN_REALM: '${WEBRTC_TURN_REALM}'
-      WEBRTC_VIDEO: '1'   # Comment for audio only
-      WEBRTC_STUN_SERVER: '${WEBRTC_STUN_SERVER}'
-
-
-
 
   - name: browser
     image: oldwebtoday/base-browser

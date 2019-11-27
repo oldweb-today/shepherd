@@ -13,7 +13,8 @@
 InitBrowserDefault("{{ reqid }}", {"id": "#browser",
                                    "inactiveSecs": {{ environ.INACTIVE_HIDE_TIMEOUT | default(0) }},
                                    "audio": "1",
-                                   "webrtc": true,
+                                   "webrtc": {{ webrtc | tojson }},
+                                   "webrtc_video": {{ webrtc_video | tojson }},
                                    "webrtcHostIP": "{{ environ.WEBRTC_HOST_IP | default('') }}"});
 </script>
 
