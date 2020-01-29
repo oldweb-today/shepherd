@@ -2,7 +2,7 @@ version: '3.5'
 
 services:
   shepherd:
-    image: oldwebtoday/shepherd:1.1.0
+    image: oldwebtoday/shepherd:1.2.0
     build: ./
 
     depends_on:
