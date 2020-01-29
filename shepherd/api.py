@@ -266,7 +266,7 @@ def init_routes(app):
         if not reqid:
             return app.render_error(res)
 
-        return app.render_browser(reqid, webrtc_video=True)
+        return app.render_browser(reqid, webrtc=True, webrtc_video=False)
 
     @app.route('/view-vp8/<image_name>/<path:url>')
     def view_vp8(image_name, url):
