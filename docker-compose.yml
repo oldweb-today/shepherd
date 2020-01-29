@@ -21,9 +21,8 @@ services:
     - 9020:9020
 
   coturn:
-    image: oldwebtoday/coturn:4.5.1.1
+    image: oldwebtoday/coturn:1.0
     build: ./coturn/
-    command: bash -x /tmp/run.sh
 
     ports:
     - 33478:33478

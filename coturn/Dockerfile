@@ -25,7 +25,8 @@ RUN make && make install
 
 RUN cp /coturn/examples/etc/*.pem .
 
-ADD run.sh /tmp/
+ADD run.sh .
 
 ENV PATH="/opt/bin64:${PATH}"
 
+CMD bash -x /coturn/run.sh
