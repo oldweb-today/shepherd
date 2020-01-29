@@ -27,6 +27,7 @@ RUN cp /coturn/examples/etc/*.pem .
 
 ADD run.sh .
 
-ENV PATH="/opt/bin64:${PATH}"
+ENV PATH="/opt/bin64:${PATH}" \
+    WEBRTC_TURN_REST_AUTH_SECRET=SHEPHERD
 
 CMD bash -x /coturn/run.sh

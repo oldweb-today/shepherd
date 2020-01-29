@@ -24,5 +24,7 @@ ENV REDIS_BROWSER_URL=redis://redis/0 \
 \
     HOME_TEMPLATE=shepherd.html \
     CONTROLS_TEMPLATE=shepherd.html \
-    VIEW_TEMPLATE=browser_embed.html
+    VIEW_TEMPLATE=browser_embed.html \
+\
+    WEBRTC_TURN_REST_AUTH_SECRET=SHEPHERD
 

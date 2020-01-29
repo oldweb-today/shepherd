@@ -15,7 +15,6 @@ services:
 
     environment:
     - DEBUG=1
-    - WEBRTC_TURN_REST_AUTH_SECRET=TURNSECRET
 
     ports:
     - 9020:9020
