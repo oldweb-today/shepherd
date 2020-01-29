@@ -1,26 +1,36 @@
 version: '3.5'
 
 services:
-    shepherd:
-        image: oldwebtoday/shepherd:1.1.0
-        build: ./
-        
-        depends_on:
-            - redis
+  shepherd:
+    image: oldwebtoday/shepherd:1.2.0
+    build: ./
 
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
-            - ./shepherd/static_base/:/app/shepherd/static_base/
-            - ./shepherd/templates/:/app/shepherd/templates/
+    depends_on:
+    - redis
 
-        environment:
-            - DEBUG=1
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./shepherd/static_base/:/app/shepherd/static_base/
+    - ./shepherd/templates/:/app/shepherd/templates/
 
-        ports:
-            - 9020:9020
+    environment:
+    - DEBUG=1
+    - WEBRTC_TURN_REST_AUTH_SECRET=TURNSECRET
 
+    ports:
+    - 9020:9020
 
-    redis:
-        image: redis:3.2.4
+  coturn:
+    image: oldwebtoday/coturn:4.5.1.1
+    build: ./coturn/
+    command: bash -x /tmp/run.sh
+
+    ports:
+    - 33478:33478
+    - 33479:33479
+
+  redis:
+    image: redis:3.2.4
+
 
 

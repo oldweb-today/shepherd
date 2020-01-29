@@ -266,8 +266,51 @@ def init_routes(app):
         if not reqid:
             return app.render_error(res)
 
-        return app.render_browser(reqid)
+        return app.render_browser(reqid, webrtc=True, webrtc_video=False)
 
+    @app.route('/view-vp8/<image_name>/<path:url>')
+    def view_vp8(image_name, url):
+        res = do_request_url_ts(app, image_name, url)
+
+        reqid = res.get('reqid')
+
+        if not reqid:
+            return app.render_error(res)
+
+        return app.render_browser(reqid, webrtc_video='VP8')
+
+    @app.route('/view-h264/<image_name>/<path:url>')
+    def view_h264(image_name, url):
+        res = do_request_url_ts(app, image_name, url)
+
+        reqid = res.get('reqid')
+
+        if not reqid:
+            return app.render_error(res)
+
+        return app.render_browser(reqid, webrtc_video='H264')
+
+    @app.route('/view-vnc-rtc-audio/<image_name>/<path:url>')
+    def view_vnc_request(image_name, url):
+        res = do_request_url_ts(app, image_name, url)
+
+        reqid = res.get('reqid')
+
+        if not reqid:
+            return app.render_error(res)
+
+        return app.render_browser(reqid, webrtc_video=False)
+
+    @app.route('/view-vnc-ms-audio/<image_name>/<path:url>')
+    def view_ms_request(image_name, url):
+        res = do_request_url_ts(app, image_name, url)
+
+        reqid = res.get('reqid')
+
+        if not reqid:
+            return app.render_error(res)
+
+        return app.render_browser(reqid, webrtc=False, webrtc_video=False)
 
     @app.route('/attach/<reqid>')
     def attach_request(reqid):

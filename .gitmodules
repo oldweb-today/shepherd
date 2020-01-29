@@ -1,3 +1,8 @@
 [submodule "shepherd-client"]
 	path = shepherd-client
-	url = https://github.com/oldweb-today/shepherd-client
+	url = https://github.com/oldweb-today/shepherd-client.git
+        branch = master
+[submodule "remote-desktop-server"]
+	path = remote-desktop-server
+	url = https://github.com/oldweb-today/remote-desktop-server.git
+        branch = master

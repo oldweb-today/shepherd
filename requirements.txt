@@ -2,8 +2,8 @@ six
 docker
 marshmallow>=3.0.0b
 redis<3.0
-apispec>1.3
-apispec_webframeworks
+apispec==2.0.2
+apispec_webframeworks==0.4.0
 flask
 gevent==1.4.0
 pyyaml

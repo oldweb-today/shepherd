@@ -37,7 +37,7 @@ class APIFlask(Flask):
 
         name = name or __name__
 
-        self.include_datetime = (os.environ.get('PROXY_HOST') != None)
+        self.include_datetime = not (not os.environ.get('PROXY_HOST'))
 
         self._init_api()
 
@@ -116,10 +116,12 @@ class APIFlask(Flask):
 
         return self.get_pool().request(flock, opts)
 
-    def render_browser(self, reqid):
+    def render_browser(self, reqid, webrtc=True, webrtc_video=True):
         return render_template(self.view_template,
                                reqid=reqid,
-                               environ=os.environ)
+                               environ=os.environ,
+                               webrtc=webrtc,
+                               webrtc_video=webrtc_video)
 
     def render_controls(self, url='', image_name='', view_url=''):
         timestamp, url = self.parse_url_ts(url)
