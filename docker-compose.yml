@@ -2,7 +2,7 @@ version: '3.5'
 
 services:
   shepherd:
-    image: oldwebtoday/shepherd:1.2.0
+    image: oldwebtoday/shepherd:1.2.5-beta.0
     build: ./
 
     depends_on:
@@ -12,6 +12,7 @@ services:
     - /var/run/docker.sock:/var/run/docker.sock
     - ./shepherd/static_base/:/app/shepherd/static_base/
     - ./shepherd/templates/:/app/shepherd/templates/
+    - ./collections/:/app/collections/
 
     environment:
     - DEBUG=1

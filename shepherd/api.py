@@ -336,11 +336,11 @@ def init_routes(app):
 
 
 # ============================================================================
-def do_request_url_ts(app, image_name, url):
+def do_request_url_ts(app, image_name, replay_url):
     if request.query_string:
-        url += '?' + request.query_string.decode('utf-8')
+        replay_url += '?' + request.query_string.decode('utf-8')
 
-    timestamp, url = app.parse_url_ts(url)
-    user_params = {'url': url, 'timestamp': timestamp}
+    coll, timestamp, url = app.parse_coll_url_ts(replay_url)
+    user_params = {'url': url, 'timestamp': timestamp, 'coll': coll}
     return app.do_request(image_name, user_params=user_params)
 

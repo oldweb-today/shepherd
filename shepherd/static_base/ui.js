@@ -126,6 +126,10 @@ document.addEventListener("DOMContentLoaded", init);
 function go(event) {
 	event.preventDefault();
 	var path = document.querySelector("#browsers").value + "/";
+    var coll = document.querySelector("#coll");
+    if (coll) {
+        path += coll.value + "/";
+    }
     var dt = document.querySelector("#datetime");
     if (dt) {
         path += dt.value.replace(/[^\d]/g, '') + "/";

@@ -39,12 +39,21 @@ class APIFlask(Flask):
 
         self.include_datetime = not (not os.environ.get('PROXY_HOST'))
 
+        self.load_coll_list()
+
         self._init_api()
 
         super(APIFlask, self).__init__(name, *args, **kwargs)
 
         self.config['TEMPLATES_AUTO_RELOAD'] = True
         self.jinja_env.auto_reload = True
+
+    def load_coll_list(self):
+        coll_dir = os.environ.get('COLLECTIONS', './collections')
+        if not os.path.isdir(coll_dir):
+            self.collections = []
+        else:
+            self.collections = [dir_ for dir_ in os.listdir(coll_dir) if os.path.isdir(os.path.join(coll_dir, dir_))]
 
     def load_yaml_file(self, filename):
         with open(filename, 'rt') as fh:
@@ -79,14 +88,18 @@ class APIFlask(Flask):
         self.view_override_image = load_value('override')
         self.view_default_flock = os.environ.get('DEFAULT_FLOCK', load_value('default_flock'))
 
-    def parse_url_ts(self, url):
+    def parse_coll_url_ts(self, url):
+        coll = ''
+        if self.collections and '/' in url:
+            coll, url = url.split('/', 1)
+
         timestamp = ''
         m = self.MATCH_TS.match(url)
         if m:
             timestamp = m.group(1)
             url = m.group(2)
 
-        return timestamp, url
+        return coll, timestamp, url
 
     def init_request_env(self, user_params):
         env = {
@@ -124,13 +137,16 @@ class APIFlask(Flask):
                                webrtc_video=webrtc_video)
 
     def render_controls(self, url='', image_name='', view_url=''):
-        timestamp, url = self.parse_url_ts(url)
+        self.load_coll_list()
+        coll, timestamp, url = self.parse_coll_url_ts(url)
         return render_template(self.controls_template if url else self.home_template,
                                url=url,
                                timestamp=timestamp,
+                               coll=coll,
                                image_name=image_name,
                                view_url=view_url,
-                               include_datetime=self.include_datetime)
+                               include_datetime=self.include_datetime,
+                               collections=self.collections)
 
     def render_error(self, error_info):
         print(error_info)

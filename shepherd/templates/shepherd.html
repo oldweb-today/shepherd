@@ -109,6 +109,18 @@
               <input type="text" id="datetime" name="datetime" class="pure-input-1" required>
             </div>
             {% endif %}
+
+            {% if collections %}
+            <div class="pure-control-group">
+              <label for="coll">Collection</label>
+              <select name="coll" id="coll">
+              {% for coll in collections %}
+              <option value="{{ coll }}">{{ coll }}</option>
+              {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+
           </fieldset>
 
           <button type="submit" class="pure-button pure-button-primary">Run Browser</button>
