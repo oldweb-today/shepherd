@@ -5,5 +5,5 @@ redis<3.0
 apispec==2.0.2
 apispec_webframeworks==0.4.0
 flask
-gevent==1.4.0
+gevent==23.9.1
 pyyaml
